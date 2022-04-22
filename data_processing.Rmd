@@ -3,9 +3,9 @@ title: "Data processing"
 output: html_notebook
 ---
 
-Ctrl + Shift + Enter - run cell
-Ctrl + Alt + I - insert new cell
-Ctrl + Shift + K - preview HTML result document
+Ctrl + Shift + Enter - run cell.
+Ctrl + Alt + I - insert new cell.
+Ctrl + Shift + K - preview HTML result document.
 
 # Download data
 
