@@ -1,0 +1,256 @@
+---
+title: "Data processing"
+output: html_notebook
+---
+
+Ctrl + Shift + Enter - run cell
+Ctrl + Alt + I - insert new cell
+Ctrl + Shift + K - preview HTML result document
+
+# Download data
+
+```{r}
+file_path = './Data/OnlineNewsPopularity.csv'
+data = read.csv(file_path)
+# attach data
+```
+
+
+```{r}
+head(data)
+```
+
+# Data exploration
+```{r}
+# Shape
+print('Data frame shape:')
+dim(data)
+```
+## Data types
+```{r}
+print('Unique data types:')
+print(unique(sapply(data, class)))
+
+# For detailed despcription use:
+# str(data)
+# colnames(data)
+```
+
+```{r}
+library(purrr)
+
+# [TODO] Serious bug with picking character feature (url). It cannot pick it
+
+num_cols = purrr::map_lgl(data, is.numeric)
+head(data[, num_cols])
+stopifnot(dim(data[, num_cols]) == c(39644, 60))
+```
+
+## NAN, Infinity Check
+```{r}
+get_nan_cols <- function(df) {
+  # Check NA and NAN values
+  
+  cols = colnames(df)
+  res = c()
+  for (i in cols){
+
+    contains_nan = TRUE %in% is.na(df$i)
+    if (contains_nan == TRUE){
+      res = append(res, i)
+    }
+  }
+  return(res)
+}
+
+nan_cols = get_nan_cols(data)
+stopifnot(length(nan_cols) == 0)
+```
+
+```{r}
+get_inf_cols <- function(df){
+  res = c()
+  cols = colnames(df)
+  
+  for (i in cols){
+    contains_inf = TRUE %in% is.infinite(df$i)
+    if (contains_inf == TRUE){
+      res = append(res, col)
+    }
+  }
+  return(res)
+}
+
+inf_cols = get_inf_cols(data)
+stopifnot(length(inf_cols) == 0)
+```
+
+## Feature Engineering (??)
+
+## Skewness & Distribution Check
+
+```{r}
+# [TODO] Display distribution of all features
+
+library(ggplot2)
+p1 = ggplot(data, aes(x=timedelta)) + geom_histogram(binwidth = 30)
+p2 = ggplot(data, aes(x=n_tokens_title)) + geom_histogram(binwidth = 1)
+
+p3 = ggplot(data, aes(x=num_keywords)) + geom_histogram(binwidth = 1)
+p4 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
+
+p5 = ggplot(data, aes(x=n_tokens_content)) + geom_histogram(binwidth = 1)
+p6 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
+
+
+# Alternative
+# library(cowplot)
+# plot_grid(p1, p2)
+
+library(gridExtra)
+grid.arrange(
+  p1, p2, p3, p4, p5, p6, ncol=3,top="Main Title"
+  # p1, p2, p3, p4, ncol=2,top="Main Title"
+)
+```
+
+
+## IQR analysis
+
+```{r}
+calc_outliers_percent <- function(data, col, q_low, q_high){
+  col_data = data[, col]
+  
+  Q1 = quantile(col_data, q_low, names = FALSE)
+  Q2 = quantile(col_data, q_high, names = FALSE)
+  IQR = Q2 - Q1
+  
+  #cat('calc', Q1, Q2, IQR, '\n')
+  
+  no_outliers <- subset(
+      data, (data[, col] > (Q1 - 1.5*IQR)) & (data[, col] < (Q2 + 1.5*IQR))
+  )
+  #cat('calc', dim(no_outliers), '\n')
+    
+  outliers_percent = (dim(data)[1] - dim(no_outliers)[1]) / dim(data)[1]
+  #cat('calc', outliers_percent, '\n')
+  
+  return (list('Q1' = Q1, 'Q2' = Q2, 'IQR' = Q2 - Q1, 'percent' = outliers_percent))
+  
+}
+
+iqr_statistics <- function(data, columns, q_low, q_high){
+  
+  for(col in columns){
+    print(col)
+    col_data = data[, col]
+    
+    
+    res = calc_outliers_percent(data, col, q_low, q_high)
+    Q1 = res$Q1
+    Q2 = res$Q2
+    IQR = res$IQR
+    
+    no_outliers <- subset(
+      data, (data[, col] > (Q1 - 1.5*IQR)) & (data[, col] < (Q2 + 1.5*IQR))
+    )
+    # print(dim(no_outliers))
+    # outliers_percent = (dim(data)[1] - dim(no_outliers)[1]) / dim(data)[1]
+    
+    
+    outliers_percent = res$percent
+    cat('Column', col, ': % of outliers:', outliers_percent, '\n')
+  }
+}
+
+
+iqr_statistics(
+  data, 
+  c(
+    'timedelta',
+    'n_tokens_content',
+    'num_hrefs'
+  ),
+  q_low = 0.25,
+  q_high = 0.75
+)
+```
+```{r}
+iqr_clean <- function(data, columns, q_low, q_high){
+  for (col in columns){
+    col_data = data[, col]
+    
+    res = calc_outliers_percent(data, col, q_low, q_high)
+    
+    outliers_percent = res$percent
+    Q1 = res$Q1
+    Q2 = res$Q2
+    IQR = res$IQR
+    
+    cat('Column', col, 'outliers %:', outliers_percent, '\n')
+    
+    
+    data = subset(
+        data,
+        (col_data > (Q1 - 1.5 * IQR)) & (col_data < (Q2 + 1.5 * IQR))
+    )
+    
+    cat('New size:', dim(data), '\n')
+  }
+  return (data)
+}
+
+data = iqr_clean(
+  data, 
+  columns = c(
+    'timedelta',
+    'n_tokens_content',
+    'num_hrefs'
+  ),
+  q_low = 0.25,
+  q_high = 0.75
+)
+```
+
+```{r}
+# [TODO] optimize this. Plotting after IQR cleaning
+library(ggplot2)
+p1 = ggplot(data, aes(x=timedelta)) + geom_histogram(binwidth = 30)
+p2 = ggplot(data, aes(x=n_tokens_title)) + geom_histogram(binwidth = 1)
+
+p3 = ggplot(data, aes(x=num_keywords)) + geom_histogram(binwidth = 1)
+p4 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
+
+p5 = ggplot(data, aes(x=n_tokens_content)) + geom_histogram(binwidth = 1)
+p6 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
+
+
+# Alternative
+# library(cowplot)
+# plot_grid(p1, p2)
+
+library(gridExtra)
+grid.arrange(
+  p1, p2, p3, p4, p5, p6, ncol=3,top="Main Title"
+  # p1, p2, p3, p4, ncol=2,top="Main Title"
+)
+```
+
+
+
+
+```{r}
+Q1 <- quantile(data$num_hrefs, .25)
+Q3 <- quantile(data$num_hrefs, .75)
+IQR <- IQR(data$num_hrefs)
+print(IQR)
+
+no_outliers <- subset(data, data$num_hrefs > (Q1 - 1.5*IQR) & data$num_hrefs < (Q3 + 1.5*IQR))
+dim(no_outliers)
+dim(data)
+```
+
+
+
+
+
