@@ -42,6 +42,7 @@ library(purrr)
 # [TODO] Serious bug with picking character feature (url). It cannot pick it
 
 num_cols = purrr::map_lgl(data, is.numeric)
+# num_cols = num_cols[num_cols == TRUE]
 head(data[, num_cols])
 stopifnot(dim(data[, num_cols]) == c(39644, 60))
 ```
@@ -88,6 +89,61 @@ stopifnot(length(inf_cols) == 0)
 ## Feature Engineering (??)
 
 ## Skewness & Distribution Check
+
+```{r}
+plot_hists <- function(data, features, n_cols){
+  
+  n_features = length(features)
+  n_rows = as.integer(n_features / n_cols)
+  # n_cols = as.integer(n_features / n_rows)
+
+  while(n_cols * n_rows < n_features){
+    n_rows = n_rows + 1
+  }
+
+  stopifnot(as.integer(n_cols * n_rows) >= n_features)  # Check if enough grid space for all plots
+  par(mfrow = c(as.integer(n_rows), as.integer(n_cols)))
+
+  par(mfrow = c(as.integer(n_rows), as.integer(n_cols)))
+  for (colname in features){
+    hist(data[, colname], main = colname)
+  }
+  
+  par(mfrow = c(1, 1))
+}
+```
+
+
+```{r}
+plot_all_hists <- function(data, num_cols){
+  index_from = 2
+  portion_len = 6
+  
+  
+  to_plot = TRUE
+  while(to_plot){
+    
+    index_to = min(index_from + portion_len - 1, length(num_cols))
+    if(index_to == length(num_cols)){
+      to_plot = FALSE
+    }
+    
+    plot_hists(
+      data,
+      features = names(
+        num_cols[index_from : index_to]
+      ),
+      n_cols = 3
+    )
+    
+    index_from = index_from + portion_len
+  
+  }
+}
+
+plot_all_hists(data, num_cols)
+
+```
 
 ```{r}
 # [TODO] Display distribution of all features
@@ -237,18 +293,15 @@ grid.arrange(
 ```
 
 
-
-
 ```{r}
-Q1 <- quantile(data$num_hrefs, .25)
-Q3 <- quantile(data$num_hrefs, .75)
-IQR <- IQR(data$num_hrefs)
-print(IQR)
-
-no_outliers <- subset(data, data$num_hrefs > (Q1 - 1.5*IQR) & data$num_hrefs < (Q3 + 1.5*IQR))
-dim(no_outliers)
-dim(data)
+plot_all_hists(
+  data,
+  num_cols
+)
 ```
+
+
+
 
 
 
