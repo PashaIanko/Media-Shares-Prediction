@@ -319,7 +319,18 @@ outlier_cols
 plot_all_hists(data, outlier_cols)
 ```
 
+Based on that, we choose some columns to perform IQR filtering. Here, we also 
+see a lot of features with 'two-populations' distribution
+```{r}
+columns_to_iqr_clean = c(
+  'num_self_hrefs',
+  'num_imgs',
+  'kw_max_min',
+  'self_reference_min_shares'
+)
 
+plot_all_hists(data, columns_to_iqr_clean)
+```
 
 
 ```{r}
@@ -336,7 +347,6 @@ iqr_clean <- function(data, columns, q_low, q_high){
     
     cat('Column', col, 'outliers %:', outliers_percent, '\n')
     
-    
     data = subset(
         data,
         (col_data > (Q1 - 1.5 * IQR)) & (col_data < (Q2 + 1.5 * IQR))
@@ -347,49 +357,23 @@ iqr_clean <- function(data, columns, q_low, q_high){
   return (data)
 }
 
+
 data = iqr_clean(
   data, 
-  columns = c(
-    'timedelta',
-    'n_tokens_content',
-    'num_hrefs'
-  ),
+  columns = columns_to_iqr_clean,
   q_low = 0.25,
   q_high = 0.75
 )
 ```
 
 ```{r}
-# [TODO] optimize this. Plotting after IQR cleaning
-library(ggplot2)
-p1 = ggplot(data, aes(x=timedelta)) + geom_histogram(binwidth = 30)
-p2 = ggplot(data, aes(x=n_tokens_title)) + geom_histogram(binwidth = 1)
-
-p3 = ggplot(data, aes(x=num_keywords)) + geom_histogram(binwidth = 1)
-p4 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
-
-p5 = ggplot(data, aes(x=n_tokens_content)) + geom_histogram(binwidth = 1)
-p6 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
-
-
-# Alternative
-# library(cowplot)
-# plot_grid(p1, p2)
-
-library(gridExtra)
-grid.arrange(
-  p1, p2, p3, p4, p5, p6, ncol=3,top="Main Title"
-  # p1, p2, p3, p4, ncol=2,top="Main Title"
-)
+plot_all_hists(data, columns_to_iqr_clean)
 ```
 
 
-```{r}
-plot_all_hists(
-  data,
-  num_cols
-)
-```
+
+
+
 
 
 
