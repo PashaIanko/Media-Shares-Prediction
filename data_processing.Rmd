@@ -42,8 +42,10 @@ library(purrr)
 # [TODO] Serious bug with picking character feature (url). It cannot pick it
 
 num_cols = purrr::map_lgl(data, is.numeric)
-# num_cols = num_cols[num_cols == TRUE]
+num_cols = names(num_cols[num_cols == TRUE])
 head(data[, num_cols])
+
+
 stopifnot(dim(data[, num_cols]) == c(39644, 60))
 ```
 
@@ -55,8 +57,8 @@ get_nan_cols <- function(df) {
   cols = colnames(df)
   res = c()
   for (i in cols){
-
-    contains_nan = TRUE %in% is.na(df$i)
+    contains_nan = length(df$i[is.nan(df$i)])
+    
     if (contains_nan == TRUE){
       res = append(res, i)
     }
@@ -64,9 +66,15 @@ get_nan_cols <- function(df) {
   return(res)
 }
 
-nan_cols = get_nan_cols(data)
+nan_cols = get_nan_cols(
+  data
+)
 stopifnot(length(nan_cols) == 0)
 ```
+
+
+
+
 
 ```{r}
 get_inf_cols <- function(df){
@@ -107,7 +115,9 @@ plot_hists <- function(data, features, n_cols){
 
   par(mfrow = c(as.integer(n_rows), as.integer(n_cols)))
   for (colname in features){
-    hist(data[, colname], main = colname)
+    if(!is.na(colname)){
+      hist(data[, colname], main = colname)
+    }
   }
   
   par(mfrow = c(1, 1))
@@ -115,9 +125,10 @@ plot_hists <- function(data, features, n_cols){
 ```
 
 
+
 ```{r}
-plot_all_hists <- function(data, num_cols){
-  index_from = 2
+plot_all_hists <- function(data, cols){
+  index_from = 1
   portion_len = 6
   
   
@@ -131,9 +142,7 @@ plot_all_hists <- function(data, num_cols){
     
     plot_hists(
       data,
-      features = names(
-        num_cols[index_from : index_to]
-      ),
+      features = cols[index_from : index_to],
       n_cols = 3
     )
     
@@ -146,14 +155,15 @@ plot_all_hists(data, num_cols)
 
 ```
 
-
 ```{r}
 check_skewness <- function(data, columns, skew_thresh, verbose = F){
   library(moments)
   res = c()
   for(column in columns){
+    
     sk = skewness(data[, column])
-    if (abs(sk) >= skew_thresh){
+
+    if (!(is.nan(sk)) && abs(sk) >= skew_thresh){
       
       if(verbose == T){
        cat('Column', column, 'skew =', sk, '\n')
@@ -168,17 +178,30 @@ check_skewness <- function(data, columns, skew_thresh, verbose = F){
 # skewness(data$max_negative_polarity)
 skewed_cols = check_skewness(
   data, 
-  names(num_cols[c(-1)]),
-  skew_thresh = 2,
+  num_cols,
+  skew_thresh = 3,
   verbose = F
 )
+print(length(skewed_cols))
+cat('skewed cols:', skewed_cols, '\n')
 ```
+
+
 
 ## Fixing skewness
 
 ```{r}
-plot_all_hists(data, num_cols)
+length(skewed_cols)
 ```
+
+
+```{r}
+plot_all_hists(data, skewed_cols)
+```
+
+
+
+
 
 ```{r}
 skewness_rootfix <- function(data, columns){
@@ -186,57 +209,37 @@ skewness_rootfix <- function(data, columns){
   
   for(column in columns){
     # print(column)
+    is_na_before = sum(is.na(data[, column]))
     data[, column] = (data[, column])^(1 / 3)
+    is_na_after = sum(is.na(data[, column]))
+    
+    if(is_na_before == 0 && is_na_after > 0){
+      cat('Problems with nans in column', column, '\n')
+    }
   }
   return(data)
 }
 
 
-data = skewness_rootfix(data, skewed_cols)
+data = skewness_rootfix(
+  data, 
+  skewed_cols[
+    -c(
+      which(skewed_cols == 'kw_min_min'),
+      which(skewed_cols == 'kw_avg_min'),
+      which(skewed_cols == 'max_negative_polarity')
+    )
+  ]
+)
 ```
 
-
-
 ```{r}
-plot_all_hists(data, num_cols)
-```
-
-
-```{r}
-
-```
-
-
-
-
-```{r}
-# [TODO] Display distribution of all features
-
-# library(ggplot2)
-# p1 = ggplot(data, aes(x=timedelta)) + geom_histogram(binwidth = 30)
-# p2 = ggplot(data, aes(x=n_tokens_title)) + geom_histogram(binwidth = 1)
-# 
-# p3 = ggplot(data, aes(x=num_keywords)) + geom_histogram(binwidth = 1)
-# p4 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
-# 
-# p5 = ggplot(data, aes(x=n_tokens_content)) + geom_histogram(binwidth = 1)
-# p6 = ggplot(data, aes(x=num_hrefs)) + geom_histogram(binwidth = 1)
-# 
-# 
-# # Alternative
-# # library(cowplot)
-# # plot_grid(p1, p2)
-# 
-# library(gridExtra)
-# grid.arrange(
-#   p1, p2, p3, p4, p5, p6, ncol=3,top="Main Title"
-#   # p1, p2, p3, p4, ncol=2,top="Main Title"
-# )
+plot_all_hists(data, skewed_cols)
+stopifnot(sum(is.na(data)) == 0)
 ```
 
 
 ## IQR analysis
-
 ```{r}
 calc_outliers_percent <- function(data, col, q_low, q_high){
   col_data = data[, col]
@@ -259,10 +262,14 @@ calc_outliers_percent <- function(data, col, q_low, q_high){
   
 }
 
-iqr_statistics <- function(data, columns, q_low, q_high){
+iqr_statistics <- function(data, columns, q_low, q_high, threshold_perc, verbose){
+  
+  # return columns with > perc_thresh percent of outliers
+  
+  outlier_cols = c()
   
   for(col in columns){
-    print(col)
+    # print(col)
     col_data = data[, col]
     
     
@@ -277,24 +284,44 @@ iqr_statistics <- function(data, columns, q_low, q_high){
     # print(dim(no_outliers))
     # outliers_percent = (dim(data)[1] - dim(no_outliers)[1]) / dim(data)[1]
     
-    
     outliers_percent = res$percent
-    cat('Column', col, ': % of outliers:', outliers_percent, '\n')
+    
+    if (outliers_percent > threshold_perc){
+      if(verbose == T){
+        cat('Column', col, ': % of outliers:', outliers_percent, '\n')
+      }
+      
+      outlier_cols = append(outlier_cols, col)
+    }
+    
+    
+    
   }
+  return(outlier_cols)
 }
 
 
-iqr_statistics(
+outlier_cols = iqr_statistics(
   data, 
-  c(
-    'timedelta',
-    'n_tokens_content',
-    'num_hrefs'
-  ),
+  num_cols,
   q_low = 0.25,
-  q_high = 0.75
+  q_high = 0.75,
+  threshold_perc = 0.1,
+  verbose = T
 )
 ```
+
+```{r}
+outlier_cols
+```
+
+```{r}
+plot_all_hists(data, outlier_cols)
+```
+
+
+
+
 ```{r}
 iqr_clean <- function(data, columns, q_low, q_high){
   for (col in columns){

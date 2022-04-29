@@ -3,3 +3,5 @@ Data/
 *.Rhistory
 *.nb
 *.html
+*.docx
+*tmp
