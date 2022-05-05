@@ -1,0 +1,65 @@
+---
+title: "Data processing"
+output: html_notebook
+---
+
+Ctrl + Shift + Enter - run cell.
+Ctrl + Alt + I - insert new cell.
+Ctrl + Shift + K - preview HTML result document.
+
+# Download data
+
+```{r}
+file_path = './Data/OnlineNewsPopularity_processed.csv'
+data = read.csv(file_path)
+print(dim(data))
+# attach data
+```
+
+
+```{r}
+data = data[, -c(1)] # removing url column
+head(data)
+```
+
+# Simple linear model
+
+```{r}
+colnames(data)[1:5]
+col
+```
+
+
+```{r}
+Y_colname = colnames(data)[length(colnames(data))]
+X_colnames = colnames(data)[1 : length(colnames(data)) - 1]
+
+X = as.matrix(data[, X_colnames])
+Y = data[, Y_colname]
+
+stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
+```
+
+
+```{r}
+dim(data)
+```
+
+
+## Full linear model
+
+```{r}
+full_model = lm(data$shares ~ ., data = data[2:500, ])
+```
+
+
+```{r}
+plot(data$shares, data$n_tokens_content, pch = 5)
+abline(full_model)
+# plot(radio, sales, pch=16)
+```
+
+
+
+
+
