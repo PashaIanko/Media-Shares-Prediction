@@ -11,6 +11,7 @@ Ctrl + Shift + K - preview HTML result document.
 
 ```{r}
 file_path = './Data/OnlineNewsPopularity.csv'
+save_path = './Data/OnlineNewsPopularity_processed.csv'
 data = read.csv(file_path)
 # attach data
 ```
@@ -333,28 +334,48 @@ plot_all_hists(data, columns_to_iqr_clean)
 ```
 
 
+
+
+
 ```{r}
 iqr_clean <- function(data, columns, q_low, q_high){
-  for (col in columns){
-    col_data = data[, col]
+  
+  # First, we need to collect the data on q1 and q3 values
+  colnames = c()
+  q1s = c()
+  q3s = c()
+  percents = c()
+  
+  for (i in 1:length(columns)){
+    colname = columns[i]
+    col_data = data[, colname]
+    res = calc_outliers_percent(data, colname, q_low, q_high)
     
-    res = calc_outliers_percent(data, col, q_low, q_high)
-    
-    outliers_percent = res$percent
-    Q1 = res$Q1
-    Q2 = res$Q2
-    IQR = res$IQR
-    
-    cat('Column', col, 'outliers %:', outliers_percent, '\n')
-    
+    colnames = append(colnames, colname)
+    q1s = append(q1s, res$Q1)
+    q3s = append(q3s, res$Q2)
+    percents = append(percents, res$percent)
+  }
+
+  for (i in 1:length(colnames)){
+    colname = colnames[i]
+    q1 = q1s[i]
+    q3 = q3s[i]
+    outliers_percent = percents[i]
+    print(q1, q3)
+    iqr = q3 - q1
+
+    cat('Col:', colname, 'Outliers %', outliers_percent, '\n')
+
+    col_data = data[, colname]
     data = subset(
         data,
-        (col_data > (Q1 - 1.5 * IQR)) & (col_data < (Q2 + 1.5 * IQR))
+        (col_data > (q1 - 1.5 * iqr)) & (col_data < (q3 + 1.5 * iqr))
     )
-    
-    cat('New size:', dim(data), '\n')
+    cat('New data size:', dim(data), '\n')
   }
-  return (data)
+  return(data)
+  
 }
 
 
@@ -370,6 +391,11 @@ data = iqr_clean(
 plot_all_hists(data, columns_to_iqr_clean)
 ```
 
+# Saving data
+
+```{r}
+write.csv(data, save_path)
+```
 
 
 
