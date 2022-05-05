@@ -7,27 +7,49 @@ Ctrl + Shift + Enter - run cell.
 Ctrl + Alt + I - insert new cell.
 Ctrl + Shift + K - preview HTML result document.
 
+```{r}
+catn <- function(x, append="\n"){cat(x); cat(append)}
+```
+
+
 # Download data
 
 ```{r}
 file_path = './Data/OnlineNewsPopularity_processed.csv'
 data = read.csv(file_path)
 print(dim(data))
-# attach data
-```
-
-
-```{r}
-data = data[, -c(1)] # removing url column
 head(data)
 ```
 
-# Simple linear model
 
 ```{r}
-colnames(data)[1:5]
-col
+data = data[, -1] # removing url column
+head(data)
 ```
+
+
+# Subsetting training data
+
+```{r}
+train_percent = 0.1
+
+sample <- sample.int(
+  n = nrow(data), 
+  size = floor(train_percent*nrow(data)), 
+  replace = F
+)
+
+train <- data[sample, ]
+test  <- data[-sample, ]
+
+cat('Train size', dim(train), '\n')
+cat('Test size', dim(test), '\n')
+```
+
+
+
+# Simple linear model
+
 
 
 ```{r}
@@ -40,16 +62,16 @@ Y = data[, Y_colname]
 stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
 ```
 
-
 ```{r}
-dim(data)
+length(X_colnames)
 ```
+
 
 
 ## Full linear model
 
 ```{r}
-full_model = lm(data$shares ~ ., data = data[2:500, ])
+full_model = lm(data$shares ~ ., data = ])
 ```
 
 

@@ -394,7 +394,12 @@ plot_all_hists(data, columns_to_iqr_clean)
 # Saving data
 
 ```{r}
-write.csv(data, save_path)
+dim(data)
+```
+
+
+```{r}
+write.csv(data, save_path, row.names = F)
 ```
 
 
