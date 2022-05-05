@@ -66,22 +66,47 @@ stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
 length(X_colnames)
 ```
 
+```{r}
+colnames(train[, 1:dim(train)[2] - 1])
+```
 
 
 ## Full linear model
 
 ```{r}
-full_model = lm(data$shares ~ ., data = ])
+full_model = lm(train[,Y_colname] ~ ., data = train[, 1 : dim(train)[2] - 1])
+```
+
+
+```{r}
+summary(full_model)
 ```
 
 
 ```{r}
 plot(data$shares, data$n_tokens_content, pch = 5)
 abline(full_model)
-# plot(radio, sales, pch=16)
+```
+```{r}
+# To look at coefficients
+# coefficients(full_model)
+
+# Confidence intervals for coefficients
+# confint(full_model)
+
+# Residuals
+# e = residuals(full_model)
 ```
 
-
+```{r}
+e <- residuals(full_model)
+RSS <- sum(e^2)
+RSS
+```
+```{r}
+plot(train$n_tokens_content, residuals(train))
+plot(train$average_token_length, residuals(train))
+```
 
 
 
