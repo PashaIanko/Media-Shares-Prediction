@@ -1,1 +1,0 @@
-print('Data frame shape:')
