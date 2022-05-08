@@ -31,18 +31,7 @@ newdata$popularity <- ""
 newdata$popularity[newdata$normalizedshare < 1400] <- "Unpopular"
 newdata$popularity[newdata$normalizedshare >= 1400] <- "Popular"
 
-            #####statistics on tokens ######
-
-plot(x=newdata$n_tokens_title,y=newdata$normalizedshares)
-#normal repartition, the optimal number of words seems centered around 10-11
-
-plot(x=newdata$n_tokens_content,y=newdata$normalizedshares)
-#short articles are shared more than long articles
-
-plot(x=newdata$n_unique_tokens,y=newdata$normalizedshares) #nothing to observe
-
-
-#inversion dummy data pour avoir une variable représentant le jour de la semaine et une représentant le thème
+#
 MultChoiceCondense<-function(vars,indata){
   tempvar<-matrix(NaN,ncol=1,nrow=length(indata[,1]))
   dat<-indata[,vars]
@@ -77,10 +66,17 @@ newdata$category[newdata$category == 5] <- "tech"
 newdata$category[newdata$category == 6] <- "world"
 
 
+            #####statistics on tokens ######
 
-###### statistics on Week Days #######
+plot(x=newdata$n_tokens_title,y=newdata$normalizedshares)
+#normal repartition, the optimal number of words seems centered around 10-11
 
+plot(x=newdata$n_tokens_content,y=newdata$normalizedshares)
+#short articles are shared more than long articles
 
+plot(x=newdata$n_unique_tokens,y=newdata$normalizedshares) #nothing to observe
+
+    ###### statistics on Week Days #######
 
 plt1<-ggplot(data=newdata, aes(x=day_of_week, y=count)) 
 plt1 + geom_bar(stat="identity", fill="steelblue")+
@@ -95,8 +91,6 @@ plt3 + geom_bar(stat="identity",position = "fill")  #Less articles are published
 
 
      #####   statistics on channel categories    #####
-
-
 
 plt4 <- ggplot(data=newdata[newdata$category != NaN,], aes(x=category, y=count)) 
 plt4 +geom_bar(stat="identity", fill="steelblue")+ theme_minimal()
