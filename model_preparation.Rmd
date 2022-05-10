@@ -51,7 +51,6 @@ cat('Test size', dim(test), '\n')
 # Simple linear model
 
 
-
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
 X_colnames = colnames(data)[1 : length(colnames(data)) - 1]
@@ -66,10 +65,6 @@ stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
 length(X_colnames)
 ```
 
-```{r}
-colnames(train[, 1:dim(train)[2] - 1])
-```
-
 
 ## Full linear model
 
@@ -78,8 +73,42 @@ full_model = lm(train[,Y_colname] ~ ., data = train[, 1 : dim(train)[2] - 1])
 ```
 
 
+### Model summary
 ```{r}
 summary(full_model)
+```
+```{r}
+par(mfrow = c(2, 2))
+plot(full_model)
+par(mfrow = c(1, 1))
+```
+
+
+### Model residuals plot
+
+```{r}
+colnames(train)
+```
+```{r}
+par(mfrow = c(1, 2))
+plot(train$avg_negative_polarity, train$shares)
+abline(full_model, col = "blue", lwd = 20)
+
+plot(
+  fitted(full_model), 
+  residuals(full_model), 
+  col="gray40", 
+  xlab="fitted values", 
+  ylab="residuals"
+)
+lines(
+  loess.smooth(fitted(mod.out), residuals(mod.out)), 
+  col="blue", 
+  lwd=2
+)
+abline(h = 0, lty = 3)
+
+par(mfrow = c(1, 1))
 ```
 
 
@@ -87,6 +116,10 @@ summary(full_model)
 plot(data$shares, data$n_tokens_content, pch = 5)
 abline(full_model)
 ```
+
+
+
+
 ```{r}
 # To look at coefficients
 # coefficients(full_model)
@@ -96,6 +129,13 @@ abline(full_model)
 
 # Residuals
 # e = residuals(full_model)
+
+# summary(model)
+# anova(full_model, reduced_model)  # Script #2 - F-test for comparison of models
+
+# Update model
+# red.mod <- update(full.mod, ~.-weight)
+# summary(red.mod)
 ```
 
 ```{r}
@@ -103,10 +143,34 @@ e <- residuals(full_model)
 RSS <- sum(e^2)
 RSS
 ```
+
 ```{r}
 plot(train$n_tokens_content, residuals(train))
 plot(train$average_token_length, residuals(train))
 ```
 
+
+
+
+
+
+
+## Full linear model (Y log transform)
+
+```{r}
+full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, 1 : dim(train)[2] - 1])
+```
+
+## Model summary
+
+```{r}
+summary(full_model_log)
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(full_model_log)
+par(mfrow = c(1, 1))
+```
 
 
