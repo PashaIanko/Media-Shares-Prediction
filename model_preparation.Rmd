@@ -90,24 +90,27 @@ par(mfrow = c(1, 1))
 colnames(train)
 ```
 ```{r}
+plot_residuals <- function(model){
+  plot(
+    fitted(model),
+    residuals(model),
+    col = 'gray40',
+    xlab = 'fitted values',
+    ylab = 'residuals'
+  )
+  
+  lines(
+    loess.smooth(fitted(model), residuals(model)),
+    col = "blue",
+    lwd = 4
+  )
+  abline(h = 0, lty = 3)
+}
+
 par(mfrow = c(1, 2))
-plot(train$avg_negative_polarity, train$shares)
+plot(train$timedelta, train$shares)
 abline(full_model, col = "blue", lwd = 20)
-
-plot(
-  fitted(full_model), 
-  residuals(full_model), 
-  col="gray40", 
-  xlab="fitted values", 
-  ylab="residuals"
-)
-lines(
-  loess.smooth(fitted(mod.out), residuals(mod.out)), 
-  col="blue", 
-  lwd=2
-)
-abline(h = 0, lty = 3)
-
+plot_residuals(full_model)
 par(mfrow = c(1, 1))
 ```
 
@@ -155,6 +158,7 @@ plot(train$average_token_length, residuals(train))
 
 
 
+
 ## Full linear model (Y log transform)
 
 ```{r}
@@ -167,10 +171,15 @@ full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, 1 : dim(train)[2]
 summary(full_model_log)
 ```
 
+
 ```{r}
 par(mfrow = c(2, 2))
 plot(full_model_log)
 par(mfrow = c(1, 1))
+```
+
+```{r}
+plot_residuals(full_model_log)
 ```
 
 
