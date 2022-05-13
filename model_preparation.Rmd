@@ -273,8 +273,70 @@ plot_subsets_summary(forward_subsets)
 ```{r}
 plot_subsets_summary(backward_subsets)
 ```
+## Resume of model selection (best number of parameters) and building these models
+
 ```{r}
-s = summary(backward_subsets)
-# s$outmat
+get_best_n_params <- function(subsets_model){
+  model_summary = summary(subsets_model)
+  best_bic = which.min(model_summary$bic)
+  best_cp = which.min(model_summary$cp)
+  return (list('best_bic' = best_bic, 'best_cp' = best_cp))
+}
+
+best_params_back = get_best_n_params(backward_subsets)
+best_params_forward = get_best_n_params(forward_subsets)
+
+n_best_bic_back = best_params_back$best_bic
+n_best_cp_back = best_params_back$best_cp
+
+n_best_bic_fwd = best_params_forward$best_bic
+n_best_cp_fwd = best_params_forward$best_cp
+
+```
+
+
+```{r}
+cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
+cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
+```
+```{r}
+bic_forward_coefs = names(coefficients(forward_subsets, n_best_bic_fwd))[-1]
+stopifnot(length(bic_forward_coefs) == n_best_bic_fwd)
+
+bic_backward_coefs = names(coefficients(backward_subsets, n_best_bic_back))[-1]
+stopifnot(length(bic_backward_coefs) == n_best_bic_back)
+
+cp_forward_coefs = names(coefficients(forward_subsets, n_best_cp_fwd))[-1]
+stopifnot(length(cp_forward_coefs) == n_best_cp_fwd)
+
+cp_backward_coefs = names(coefficients(backward_subsets, n_best_cp_back))[-1]
+stopifnot(length(cp_backward_coefs) == n_best_cp_back)
+
+```
+
+Here are the chosen coefficients after model selection:
+
+```{r}
+print(cp_backward_coefs)
+print(bic_backward_coefs)
+```
+
+
+## The variables elimination 
+
+```{r}
+plot(backward_subsets, scale = 'r2')
+```
+
+```{r}
+plot(forward_subsets, scale = 'r2')
+```
+
+Up to now, from lectures we know that backward model selection is more preferrable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
+
+
+
+```{r}
+coef(forward_subsets, 7)
 ```
 
