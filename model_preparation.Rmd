@@ -7,8 +7,9 @@ Ctrl + Shift + Enter - run cell.
 Ctrl + Alt + I - insert new cell.
 Ctrl + Shift + K - preview HTML result document.
 
+# Packages
 ```{r}
-catn <- function(x, append="\n"){cat(x); cat(append)}
+library(leaps)
 ```
 
 
@@ -20,7 +21,6 @@ data = read.csv(file_path)
 print(dim(data))
 head(data)
 ```
-
 
 ```{r}
 data = data[, -1] # removing url column
@@ -46,12 +46,6 @@ test  <- data[-sample, ]
 cat('Train size', dim(train), '\n')
 cat('Test size', dim(test), '\n')
 ```
-
-
-
-# Simple linear model
-
-
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
 stopifnot(Y_colname == 'shares')
@@ -66,15 +60,14 @@ stopifnot(dim(train)[2] - 1 == dim(train[, X_colnames])[2])
 ```
 
 
-
-## Full linear model
+# Full linear model
 
 ```{r}
 full_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
 ```
 
 
-### Model summary
+## Model summary
 ```{r}
 summary(full_model)
 ```
@@ -85,6 +78,10 @@ plot(full_model)
 par(mfrow = c(1, 1))
 ```
 
+```{r}
+qqnorm(rstandard(full_model))
+qqline(rstandard(full_model))
+```
 
 ### Model residuals plot
 
@@ -114,6 +111,10 @@ plot(train$timedelta, train$shares)
 abline(full_model, col = "blue", lwd = 2)
 plot_residuals(full_model)
 par(mfrow = c(1, 1))
+```
+
+```{r}
+plot_residuals(full_model)
 ```
 
 
@@ -158,13 +159,21 @@ plot(train$average_token_length, residuals(train))
 
 
 
-## Full linear model (Y log transform)
+
+
+# Full linear model (Y log transform) -- Poisson GLM
 
 ```{r}
-full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, 1 : dim(train)[2] - 1])
+full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, X_colnames])
 ```
 
 ## Model summary
+
+```{r}
+qqnorm(rstandard(full_model_log))
+qqline(rstandard(full_model_log))
+```
+
 
 ```{r}
 summary(full_model_log)
@@ -179,6 +188,32 @@ par(mfrow = c(1, 1))
 
 ```{r}
 plot_residuals(full_model_log)
+```
+
+
+
+# Linear model (model selection)
+
+Notice! That here we have two highly correlated features : 'weekday_is_friday' and 'weekday_is_saturday'
+
+```{r}
+
+correlated_indices = c(
+  match('weekday_is_friday', names(train)),
+  match('weekday_is_saturday', names(train))
+)
+# match
+stopifnot(sum(is.na(correlated_indices)) == 0)
+
+forward_subsets = regsubsets(
+  shares ~ ., data = train[, -correlated_indices], method = 'forward'
+)
+```
+
+
+```{r}
+forward_summary = summary(forward_subsets)
+forward_summary$outmat
 ```
 
 

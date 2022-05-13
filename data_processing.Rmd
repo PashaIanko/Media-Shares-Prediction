@@ -50,7 +50,7 @@ head(data[, num_cols])
 stopifnot(dim(data[, num_cols]) == c(39644, 60))
 ```
 
-## NAN, Infinity Check
+## NAN, Infinity Check, check factor variables
 ```{r}
 get_nan_cols <- function(df) {
   # Check NA and NAN values
@@ -71,6 +71,11 @@ nan_cols = get_nan_cols(
   data
 )
 stopifnot(length(nan_cols) == 0)
+
+# Check that we dont have factor variables
+for(c in colnames(data)){
+  stopifnot(!is.factor(data[, c]))
+}
 ```
 
 
