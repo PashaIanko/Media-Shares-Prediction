@@ -391,6 +391,13 @@ data = iqr_clean(
 plot_all_hists(data, columns_to_iqr_clean)
 ```
 
+# Correlation analysis
+
+```{r}
+pairs(data[, c(1, 2, 3, 4)])
+```
+
+
 # Saving data
 
 ```{r}
