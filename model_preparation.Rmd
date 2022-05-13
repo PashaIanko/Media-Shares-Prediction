@@ -192,12 +192,12 @@ plot_residuals(full_model_log)
 
 
 
-# Linear model (model selection)
+# Linear model (forward / backward model selection)
 
 Notice! That here we have two highly correlated features : 'weekday_is_friday' and 'weekday_is_saturday'
 
-```{r}
 
+```{r}
 correlated_indices = c(
   match('weekday_is_friday', names(train)),
   match('weekday_is_saturday', names(train))
@@ -205,15 +205,76 @@ correlated_indices = c(
 # match
 stopifnot(sum(is.na(correlated_indices)) == 0)
 
+
+nvmax = 20
+
 forward_subsets = regsubsets(
-  shares ~ ., data = train[, -correlated_indices], method = 'forward'
+  shares ~ .,
+  data = train[, -correlated_indices], 
+  method = 'forward',
+  nvmax = nvmax
+)
+
+backward_subsets = regsubsets(
+  shares ~ .,
+  data = train[, -correlated_indices], 
+  method = 'backward',
+  nvmax = 20
 )
 ```
 
+## Model summary
 
 ```{r}
-forward_summary = summary(forward_subsets)
-forward_summary$outmat
+plot_max_point <- function(values){
+  max_idx = which.max(values)
+  points(max_idx, values[max_idx], col = 'red', cex = 2, pch = 20)
+}
+
+plot_min_point <- function(values){
+  min_idx = which.min(values)
+  points(min_idx, values[min_idx], col = 'red', cex = 2, pch = 20)
+}
+
+plot_subsets_summary <- function(subsets_model){
+  subset_summary = summary(subsets_model)
+  
+  xlabel = 'Number of iterations'
+  linetype = 'l'
+  
+  par(mfrow = c(2, 2))
+  
+  plot(subset_summary$rss, xlab = xlabel, ylab = 'RSS', type = linetype)
+  plot_min_point(values = subset_summary$rss)
+  
+  plot(subset_summary$adjr2, xlab = xlabel, ylab = 'Adjusted R2', type = linetype)
+  plot_max_point(values = subset_summary$adjr2)
+  
+  plot(subset_summary$cp, xlab = xlabel, ylab = 'Cp', type = linetype)
+  plot_min_point(values = subset_summary$cp)
+  
+  plot(subset_summary$bic, xlab = xlabel, ylab = 'BIC', type = 'l')
+  plot_min_point(values = subset_summary$bic)
+  
+  
+  # max_idx = which.max(subset_summary$adjr2)
+  # points(max_idx, reg.summary$adjr2[max_idx], col="red",cex=2,pch=20)
+  
+  par(mfrow = c(1, 1))
+}
 ```
 
+## Model summary
+
+```{r}
+plot_subsets_summary(forward_subsets)
+```
+
+```{r}
+plot_subsets_summary(backward_subsets)
+```
+```{r}
+s = summary(backward_subsets)
+# s$outmat
+```
 
