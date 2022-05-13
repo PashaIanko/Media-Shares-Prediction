@@ -7,8 +7,9 @@ Ctrl + Shift + Enter - run cell.
 Ctrl + Alt + I - insert new cell.
 Ctrl + Shift + K - preview HTML result document.
 
+# Packages
 ```{r}
-catn <- function(x, append="\n"){cat(x); cat(append)}
+library(leaps)
 ```
 
 
@@ -21,10 +22,10 @@ print(dim(data))
 head(data)
 ```
 
-
 ```{r}
 data = data[, -1] # removing url column
 head(data)
+stopifnot(dim(data)[2] == 60)
 ```
 
 
@@ -45,44 +46,42 @@ test  <- data[-sample, ]
 cat('Train size', dim(train), '\n')
 cat('Test size', dim(test), '\n')
 ```
-
-
-
-# Simple linear model
-
-
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
+stopifnot(Y_colname == 'shares')
+
 X_colnames = colnames(data)[1 : length(colnames(data)) - 1]
 
-X = as.matrix(data[, X_colnames])
-Y = data[, Y_colname]
+# X = as.matrix(data[, X_colnames])
+# Y = data[, Y_colname]
 
 stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
+stopifnot(dim(train)[2] - 1 == dim(train[, X_colnames])[2])
 ```
+
+
+# Full linear model
 
 ```{r}
-length(X_colnames)
+full_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
 ```
 
 
-## Full linear model
-
-```{r}
-full_model = lm(train[,Y_colname] ~ ., data = train[, 1 : dim(train)[2] - 1])
-```
-
-
-### Model summary
+## Model summary
 ```{r}
 summary(full_model)
 ```
+
 ```{r}
 par(mfrow = c(2, 2))
 plot(full_model)
 par(mfrow = c(1, 1))
 ```
 
+```{r}
+qqnorm(rstandard(full_model))
+qqline(rstandard(full_model))
+```
 
 ### Model residuals plot
 
@@ -102,16 +101,20 @@ plot_residuals <- function(model){
   lines(
     loess.smooth(fitted(model), residuals(model)),
     col = "blue",
-    lwd = 4
+    lwd = 2
   )
   abline(h = 0, lty = 3)
 }
 
 par(mfrow = c(1, 2))
 plot(train$timedelta, train$shares)
-abline(full_model, col = "blue", lwd = 20)
+abline(full_model, col = "blue", lwd = 2)
 plot_residuals(full_model)
 par(mfrow = c(1, 1))
+```
+
+```{r}
+plot_residuals(full_model)
 ```
 
 
@@ -158,14 +161,19 @@ plot(train$average_token_length, residuals(train))
 
 
 
-
-## Full linear model (Y log transform)
+# Full linear model (Y log transform) -- Poisson GLM
 
 ```{r}
-full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, 1 : dim(train)[2] - 1])
+full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, X_colnames])
 ```
 
 ## Model summary
+
+```{r}
+qqnorm(rstandard(full_model_log))
+qqline(rstandard(full_model_log))
+```
+
 
 ```{r}
 summary(full_model_log)
@@ -182,4 +190,153 @@ par(mfrow = c(1, 1))
 plot_residuals(full_model_log)
 ```
 
+
+
+# Linear model (forward / backward model selection)
+
+Notice! That here we have two highly correlated features : 'weekday_is_friday' and 'weekday_is_saturday'
+
+
+```{r}
+correlated_indices = c(
+  match('weekday_is_friday', names(train)),
+  match('weekday_is_saturday', names(train))
+)
+# match
+stopifnot(sum(is.na(correlated_indices)) == 0)
+
+
+nvmax = 20
+
+forward_subsets = regsubsets(
+  shares ~ .,
+  data = train[, -correlated_indices], 
+  method = 'forward',
+  nvmax = nvmax
+)
+
+backward_subsets = regsubsets(
+  shares ~ .,
+  data = train[, -correlated_indices], 
+  method = 'backward',
+  nvmax = 20
+)
+```
+
+## Model summary
+
+```{r}
+plot_max_point <- function(values){
+  max_idx = which.max(values)
+  points(max_idx, values[max_idx], col = 'red', cex = 2, pch = 20)
+}
+
+plot_min_point <- function(values){
+  min_idx = which.min(values)
+  points(min_idx, values[min_idx], col = 'red', cex = 2, pch = 20)
+}
+
+plot_subsets_summary <- function(subsets_model){
+  subset_summary = summary(subsets_model)
+  
+  xlabel = 'Number of iterations'
+  linetype = 'l'
+  
+  par(mfrow = c(2, 2))
+  
+  plot(subset_summary$rss, xlab = xlabel, ylab = 'RSS', type = linetype)
+  plot_min_point(values = subset_summary$rss)
+  
+  plot(subset_summary$adjr2, xlab = xlabel, ylab = 'Adjusted R2', type = linetype)
+  plot_max_point(values = subset_summary$adjr2)
+  
+  plot(subset_summary$cp, xlab = xlabel, ylab = 'Cp', type = linetype)
+  plot_min_point(values = subset_summary$cp)
+  
+  plot(subset_summary$bic, xlab = xlabel, ylab = 'BIC', type = 'l')
+  plot_min_point(values = subset_summary$bic)
+  
+  
+  # max_idx = which.max(subset_summary$adjr2)
+  # points(max_idx, reg.summary$adjr2[max_idx], col="red",cex=2,pch=20)
+  
+  par(mfrow = c(1, 1))
+}
+```
+
+## Model summary
+
+```{r}
+plot_subsets_summary(forward_subsets)
+```
+
+```{r}
+plot_subsets_summary(backward_subsets)
+```
+## Resume of model selection (best number of parameters) and building these models
+
+```{r}
+get_best_n_params <- function(subsets_model){
+  model_summary = summary(subsets_model)
+  best_bic = which.min(model_summary$bic)
+  best_cp = which.min(model_summary$cp)
+  return (list('best_bic' = best_bic, 'best_cp' = best_cp))
+}
+
+best_params_back = get_best_n_params(backward_subsets)
+best_params_forward = get_best_n_params(forward_subsets)
+
+n_best_bic_back = best_params_back$best_bic
+n_best_cp_back = best_params_back$best_cp
+
+n_best_bic_fwd = best_params_forward$best_bic
+n_best_cp_fwd = best_params_forward$best_cp
+
+```
+
+
+```{r}
+cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
+cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
+```
+```{r}
+bic_forward_coefs = names(coefficients(forward_subsets, n_best_bic_fwd))[-1]
+stopifnot(length(bic_forward_coefs) == n_best_bic_fwd)
+
+bic_backward_coefs = names(coefficients(backward_subsets, n_best_bic_back))[-1]
+stopifnot(length(bic_backward_coefs) == n_best_bic_back)
+
+cp_forward_coefs = names(coefficients(forward_subsets, n_best_cp_fwd))[-1]
+stopifnot(length(cp_forward_coefs) == n_best_cp_fwd)
+
+cp_backward_coefs = names(coefficients(backward_subsets, n_best_cp_back))[-1]
+stopifnot(length(cp_backward_coefs) == n_best_cp_back)
+
+```
+
+Here are the chosen coefficients after model selection:
+
+```{r}
+print(cp_backward_coefs)
+print(bic_backward_coefs)
+```
+
+
+## The variables elimination 
+
+```{r}
+plot(backward_subsets, scale = 'r2')
+```
+
+```{r}
+plot(forward_subsets, scale = 'r2')
+```
+
+Up to now, from lectures we know that backward model selection is more preferrable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
+
+
+
+```{r}
+coef(forward_subsets, 7)
+```
 
