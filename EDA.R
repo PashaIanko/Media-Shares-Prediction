@@ -8,6 +8,11 @@ summary(data)
 newdata = subset(data, select = -c(url,timedelta))
 View(newdata)
 
+# Heat Map for Correlation between all variables
+cormatrix <- cor(newdata)
+heatmap(cormatrix)
+
+
 ##Plot all the variable data by histogram to check the distributions
 par(mfrow=c(3,4))
 for(i in 1:length(newdata)){
