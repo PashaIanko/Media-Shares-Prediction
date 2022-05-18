@@ -32,20 +32,40 @@ stopifnot(dim(data)[2] == 60)
 # Subsetting training data
 
 ```{r}
-train_percent = 0.1
+train_percent = 0.1  # percent of initial dataset
+val_percent = 0.1
+train_val_percent = train_percent + val_percent
+test_percent = 1 - train_val_percent
+```
 
-sample <- sample.int(
-  n = nrow(data), 
-  size = floor(train_percent*nrow(data)), 
-  replace = F
+```{r}
+train_val_sample = sample.int(
+  n = nrow(data),
+  size = floor(train_val_percent * nrow(data))
 )
 
-train <- data[sample, ]
-test  <- data[-sample, ]
+train_val = data[train_val_sample, ]
+test = data[-train_val_sample, ]
 
-cat('Train size', dim(train), '\n')
-cat('Test size', dim(test), '\n')
+train_sample = sample.int(
+  n = nrow(train_val),
+  size = floor(train_percent * nrow(data)) 
+)
+
+train = train_val[train_sample, ]
+validation = train_val[-train_sample, ]
+
+ncat = function(...){
+  cat(..., '\n')
+}
+
+ncat('Train size', nrow(train))
+ncat('Validation size', nrow(validation))
+ncat('Test size', nrow(test))
 ```
+
+
+
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
 stopifnot(Y_colname == 'shares')
@@ -332,11 +352,60 @@ plot(backward_subsets, scale = 'r2')
 plot(forward_subsets, scale = 'r2')
 ```
 
-Up to now, from lectures we know that backward model selection is more preferrable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
+Up to now, from lectures we know that backward model selection is more preferable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
 
 
+## Building best model after elimination (Based on BIC)
 
 ```{r}
-coef(forward_subsets, 7)
+bic_best_model = lm(train[, Y_colname] ~ ., data = train[, bic_backward_coefs])
+```
+
+```{r}
+summary(bic_best_model)
+```
+## Building best model after elimination (Based on Cp)
+
+```{r}
+cp_best_model = lm(train[, Y_colname] ~ ., data = train[, cp_backward_coefs])
+```
+
+```{r}
+summary(cp_best_model)
+```
+
+
+# Forward / backward selection for log(Y) transform
+```{r}
+correlated_indices = c(
+  match('weekday_is_friday', names(train)),
+  match('weekday_is_saturday', names(train))
+)
+# match
+stopifnot(sum(is.na(correlated_indices)) == 0)
+
+
+nvmax = 20
+
+log_forward_subsets = regsubsets(
+  log(shares) ~ .,
+  data = train[, -correlated_indices], 
+  method = 'forward',
+  nvmax = nvmax
+)
+
+log_backward_subsets = regsubsets(
+  log(shares) ~ .,
+  data = train[, -correlated_indices], 
+  method = 'backward',
+  nvmax = 20
+)
+```
+
+```{r}
+plot_subsets_summary(log_forward_subsets)
+```
+```{r}
+plot_subsets_summary(log_backward_subsets)
 ```
 
