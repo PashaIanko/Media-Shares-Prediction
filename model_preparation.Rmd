@@ -28,9 +28,6 @@ head(data)
 stopifnot(dim(data)[2] == 60)
 ```
 
-```{r}
-dim(data)[1]
-```
 
 # Subsetting training data
 
@@ -98,7 +95,6 @@ stopifnot(dim(train)[2] - 1 == dim(train[, X_colnames])[2])
 ```{r}
 full_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
 ```
-
 
 ## Model summary
 ```{r}
@@ -543,7 +539,37 @@ plot_ordered_hist(
 ## Comparison on the test set
 
 ```{r}
+library(stringr)
 
+test_r2 = c()
+
+for(m in models){
+  model = m$model
+  name = m$name
+
+  preds = predict(
+    model,
+    data = test[, coefficients(model)]
+  )
+  if(str_detect(name, 'log')){
+    preds = exp(preds)
+  }
+  
+  r2 = mean((preds - test$shares)^2)
+  cat('Model:', name, 'mean test R2:', r2, '\n')
+  test_r2 = append(test_r2, r2)
+}
+
+plot_ordered_hist(
+  X = names, 
+  Y = test_r2,
+  main = 'R2 test', 
+  xlab = 'Model name', 
+  ylab = 'R2'
+)
 ```
+
+
+
 
 
