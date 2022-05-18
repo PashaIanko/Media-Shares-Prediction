@@ -32,20 +32,50 @@ stopifnot(dim(data)[2] == 60)
 # Subsetting training data
 
 ```{r}
-train_percent = 0.1
+subset_size = 3000  # Number of points that we use from the dataset
 
-sample <- sample.int(
-  n = nrow(data), 
-  size = floor(train_percent*nrow(data)), 
-  replace = F
+subsample_indices = sample.int(
+  n = nrow(data),
+  size = subset_size
 )
 
-train <- data[sample, ]
-test  <- data[-sample, ]
-
-cat('Train size', dim(train), '\n')
-cat('Test size', dim(test), '\n')
+data = data[subsample_indices, ]
+stopifnot(dim(data)[1] == subset_size)
 ```
+
+```{r}
+train_percent = 0.6
+val_percent = 0.2
+train_val_percent = train_percent + val_percent
+test_percent = 1 - train_val_percent
+```
+
+```{r}
+train_val_sample = sample.int(
+  n = nrow(data),
+  size = floor(train_val_percent * nrow(data))
+)
+
+train_val = data[train_val_sample, ]
+test = data[-train_val_sample, ]
+
+train_sample = sample.int(
+  n = nrow(train_val),
+  size = floor(train_percent * nrow(data)) 
+)
+
+train = train_val[train_sample, ]
+validation = train_val[-train_sample, ]
+
+ncat = function(...){
+  cat(..., '\n')
+}
+
+ncat('Train size', nrow(train))
+ncat('Validation size', nrow(validation))
+ncat('Test size', nrow(test))
+```
+
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
 stopifnot(Y_colname == 'shares')
@@ -65,7 +95,6 @@ stopifnot(dim(train)[2] - 1 == dim(train[, X_colnames])[2])
 ```{r}
 full_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
 ```
-
 
 ## Model summary
 ```{r}
@@ -283,6 +312,18 @@ get_best_n_params <- function(subsets_model){
   return (list('best_bic' = best_bic, 'best_cp' = best_cp))
 }
 
+get_best_coefficients <- function(subsets_model){
+  best_params = get_best_n_params(subsets_model)
+  
+  n_best_bic = best_params$best_bic
+  n_best_cp = best_params$best_cp
+  
+  best_bic_coefs = names(coefficients(subsets_model, n_best_bic))[-1]
+  best_cp_coefs = names(coefficients(subsets_model, n_best_cp))[-1]
+  
+  return(list("best_bic_coefs" = best_bic_coefs, "best_cp_coefs" = best_cp_coefs))
+}
+
 best_params_back = get_best_n_params(backward_subsets)
 best_params_forward = get_best_n_params(forward_subsets)
 
@@ -300,18 +341,14 @@ cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
 cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
 ```
 ```{r}
-bic_forward_coefs = names(coefficients(forward_subsets, n_best_bic_fwd))[-1]
-stopifnot(length(bic_forward_coefs) == n_best_bic_fwd)
+best_forward_coefs = get_best_coefficients(forward_subsets)
+best_backward_coefs = get_best_coefficients(backward_subsets)
 
-bic_backward_coefs = names(coefficients(backward_subsets, n_best_bic_back))[-1]
-stopifnot(length(bic_backward_coefs) == n_best_bic_back)
+bic_forward_coefs = best_forward_coefs$best_bic_coefs
+bic_backward_coefs = best_backward_coefs$best_bic_coefs
 
-cp_forward_coefs = names(coefficients(forward_subsets, n_best_cp_fwd))[-1]
-stopifnot(length(cp_forward_coefs) == n_best_cp_fwd)
-
-cp_backward_coefs = names(coefficients(backward_subsets, n_best_cp_back))[-1]
-stopifnot(length(cp_backward_coefs) == n_best_cp_back)
-
+cp_forward_coefs = best_forward_coefs$best_cp_coefs
+cp_backward_coefs = best_backward_coefs$best_cp_coefs
 ```
 
 Here are the chosen coefficients after model selection:
@@ -332,11 +369,207 @@ plot(backward_subsets, scale = 'r2')
 plot(forward_subsets, scale = 'r2')
 ```
 
-Up to now, from lectures we know that backward model selection is more preferrable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
+Up to now, from lectures we know that backward model selection is more preferable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
 
+
+## Building best model after elimination (Based on BIC)
+
+```{r}
+bic_best_model = lm(train[, Y_colname] ~ ., data = train[, bic_backward_coefs])
+```
+
+```{r}
+summary(bic_best_model)
+```
+## Building best model after elimination (Based on Cp)
+
+```{r}
+cp_best_model = lm(train[, Y_colname] ~ ., data = train[, cp_backward_coefs])
+```
+
+```{r}
+summary(cp_best_model)
+```
+
+
+# Forward / backward selection for log(Y) transform
+```{r}
+nvmax = 20
+
+log_forward_subsets = regsubsets(
+  log(shares) ~ .,
+  data = train[, -correlated_indices], 
+  method = 'forward',
+  nvmax = nvmax
+)
+
+log_backward_subsets = regsubsets(
+  log(shares) ~ .,
+  data = train[, -correlated_indices], 
+  method = 'backward',
+  nvmax = 20
+)
+```
+
+```{r}
+plot_subsets_summary(log_forward_subsets)
+```
+```{r}
+plot_subsets_summary(log_backward_subsets)
+```
+```{r}
+log_best_coefficients = get_best_coefficients(log_backward_subsets)
+log_bic_backward_coefs = log_best_coefficients$best_bic_coefs
+log_cp_backward_coefs = log_best_coefficients$best_cp_coefs
+```
 
 
 ```{r}
-coef(forward_subsets, 7)
+cat(
+  'Number of best coefficients', 
+  length(log_bic_backward_coefs), 
+  length(log_cp_backward_coefs),
+  '\n'
+)
+log_bic_backward_coefs
+log_cp_backward_coefs
 ```
+
+
+```{r}
+log_cp_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_cp_backward_coefs])
+summary(log_cp_best_model)
+```
+
+```{r}
+log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_backward_coefs])
+```
+
+
+```{r}
+summary(log_bic_best_model)
+```
+
+# Comparison of models
+
+```{r}
+models = list(
+  full_model = list(name = 'full', model = full_model),
+  full_model_log = list(name = 'full log', model = full_model_log),
+  
+  backward_bic_best_model = list(name = 'bck. bic', model = bic_best_model),
+  backward_cp_best_model = list(name = 'bck. cp', model = cp_best_model),
+  
+  backward_cp_best_model_log = list(name = 'bck. cp log', 
+                                    model = log_cp_best_model),
+  backward_bic_best_model_log = list(name = 'bck. bic log',
+                                     model = log_bic_best_model)
+)
+```
+
+## Comparison of R^2
+
+```{r}
+
+plot_ordered_hist <- function(X, Y, main, xlab, ylab){
+  data = data.frame(Y, X)
+  barplot(
+    data[order(data[,1],decreasing=TRUE),][,1],
+    names.arg=data[order(data[,1],decreasing=TRUE),][,2],
+    main = main,
+    xlab = xlab,
+    ylab = ylab
+  )
+}
+
+names = c()
+r.squareds = c()
+for(m in models){
+  names = append(names, m$name)  
+  r.squareds = append(r.squareds, summary(m$model)$adj.r.squared)
+}
+
+plot_ordered_hist(
+  X = names,
+  Y = r.squareds,
+  main = 'Adjusted R sqared',
+  xlab = 'Model name',
+  ylab = 'Adjusted R squared'
+)
+```
+
+
+## Comparison of BIC
+
+```{r}
+BICs = c()
+
+for(m in models){
+  BICs = append(BICs, BIC(m$model))
+}
+
+BICs_norm = BICs / max(BICs)
+plot_ordered_hist(
+  X = names, 
+  Y = BICs_norm, 
+  main = 'Normalized Bayesian Information Criterion (BIC)', 
+  xlab = 'Model name', 
+  ylab = 'BIC'
+)
+```
+
+## Comparison of parameters number
+
+```{r}
+model_sizes = c()
+for(m in models){
+  model_sizes = append(model_sizes, length(coefficients(m$model)))
+}
+model_sizes_norm = model_sizes / max(model_sizes)
+
+plot_ordered_hist(
+  X = names, 
+  Y = model_sizes_norm, 
+  main = 'Number of coefficients', 
+  xlab = 'Model name', 
+  ylab = 'Normalized number of coefficients'
+)
+```
+
+## Comparison on the test set
+
+```{r}
+library(stringr)
+
+test_r2 = c()
+
+for(m in models){
+  model = m$model
+  name = m$name
+
+  preds = predict(
+    model,
+    data = test[, coefficients(model)]
+  )
+  if(str_detect(name, 'log')){
+    preds = exp(preds)
+  }
+  
+  r2 = mean((preds - test$shares)^2)
+  cat('Model:', name, 'mean test R2:', r2, '\n')
+  test_r2 = append(test_r2, r2)
+}
+
+plot_ordered_hist(
+  X = names, 
+  Y = test_r2,
+  main = 'R2 test', 
+  xlab = 'Model name', 
+  ylab = 'R2'
+)
+```
+
+
+
+
 
