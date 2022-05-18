@@ -303,6 +303,18 @@ get_best_n_params <- function(subsets_model){
   return (list('best_bic' = best_bic, 'best_cp' = best_cp))
 }
 
+get_best_coefficients <- function(subsets_model){
+  best_params = get_best_n_params(subsets_model)
+  
+  n_best_bic = best_params$best_bic
+  n_best_cp = best_params$best_cp
+  
+  best_bic_coefs = names(coefficients(subsets_model, n_best_bic))[-1]
+  best_cp_coefs = names(coefficients(subsets_model, n_best_cp))[-1]
+  
+  return(list("best_bic_coefs" = best_bic_coefs, "best_cp_coefs" = best_cp_coefs))
+}
+
 best_params_back = get_best_n_params(backward_subsets)
 best_params_forward = get_best_n_params(forward_subsets)
 
@@ -320,18 +332,14 @@ cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
 cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
 ```
 ```{r}
-bic_forward_coefs = names(coefficients(forward_subsets, n_best_bic_fwd))[-1]
-stopifnot(length(bic_forward_coefs) == n_best_bic_fwd)
+best_forward_coefs = get_best_coefficients(forward_subsets)
+best_backward_coefs = get_best_coefficients(backward_subsets)
 
-bic_backward_coefs = names(coefficients(backward_subsets, n_best_bic_back))[-1]
-stopifnot(length(bic_backward_coefs) == n_best_bic_back)
+bic_forward_coefs = best_forward_coefs$best_bic_coefs
+bic_backward_coefs = best_backward_coefs$best_bic_coefs
 
-cp_forward_coefs = names(coefficients(forward_subsets, n_best_cp_fwd))[-1]
-stopifnot(length(cp_forward_coefs) == n_best_cp_fwd)
-
-cp_backward_coefs = names(coefficients(backward_subsets, n_best_cp_back))[-1]
-stopifnot(length(cp_backward_coefs) == n_best_cp_back)
-
+cp_forward_coefs = best_forward_coefs$best_cp_coefs
+cp_backward_coefs = best_backward_coefs$best_cp_coefs
 ```
 
 Here are the chosen coefficients after model selection:
@@ -377,14 +385,6 @@ summary(cp_best_model)
 
 # Forward / backward selection for log(Y) transform
 ```{r}
-correlated_indices = c(
-  match('weekday_is_friday', names(train)),
-  match('weekday_is_saturday', names(train))
-)
-# match
-stopifnot(sum(is.na(correlated_indices)) == 0)
-
-
 nvmax = 20
 
 log_forward_subsets = regsubsets(
@@ -407,5 +407,43 @@ plot_subsets_summary(log_forward_subsets)
 ```
 ```{r}
 plot_subsets_summary(log_backward_subsets)
+```
+```{r}
+log_best_coefficients = get_best_coefficients(log_backward_subsets)
+log_bic_backward_coefs = log_best_coefficients$best_bic_coefs
+log_cp_backward_coefs = log_best_coefficients$best_cp_coefs
+```
+
+```{r}
+catn('a', 'b', 'c')
+```
+
+
+```{r}
+cat(
+  'Number of best coefficients', 
+  length(log_bic_backward_coefs), 
+  length(log_cp_backward_coefs),
+  '\n'
+)
+log_bic_backward_coefs
+log_cp_backward_coefs
+```
+
+
+```{r}
+log_cp_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_cp_backward_coefs])
+```
+
+```{r}
+summary(log_cp_best_model)
+```
+```{r}
+log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_backward_coefs])
+```
+
+
+```{r}
+summary(log_bic_best_model)
 ```
 
