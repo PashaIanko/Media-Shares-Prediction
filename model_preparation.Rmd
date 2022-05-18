@@ -447,3 +447,84 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 summary(log_bic_best_model)
 ```
 
+
+# Comparison of models
+## Comparison of R^2
+
+
+```{r}
+models = list(
+  full_model = list(name = 'full', model = full_model),
+  full_model_log = list(name = 'full log', model = full_model_log),
+  
+  backward_bic_best_model = list(name = 'bck. bic', model = bic_best_model),
+  backward_cp_best_model = list(name = 'bck. cp', model = cp_best_model),
+  
+  backward_cp_best_model_log = list(name = 'bck. cp log', 
+                                    model = log_cp_best_model),
+  backward_bic_best_model_log = list(name = 'bck. bic log',
+                                     model = log_bic_best_model)
+)
+```
+
+```{r}
+names
+```
+
+
+```{r}
+names = c()
+r.squareds = c()
+for(m in models){
+  names = append(names, m$name)  
+  r.squareds = append(r.squareds, summary(m$model)$adj.r.squared)
+}
+
+barplot(
+  r.squareds,
+  main = 'R^2 adjusted',
+  xlab = 'Model name',
+  ylab = 'R^2 adjusted',
+  names.arg = names
+)
+```
+
+```{r}
+
+```
+
+
+```{r}
+library(ggplot2)
+
+# create dummy data
+data <- data.frame(
+  name=letters[1:5],
+  value=sample(seq(4,15),5),
+  sd=c(1,0.2,3,2,4)
+)
+ 
+# Most basic error bar
+ggplot(data) +
+    geom_bar( aes(x=name, y=value), stat="identity", fill="skyblue", alpha=0.7) +
+    geom_errorbar( aes(x=name, ymin=value-sd, ymax=value+sd), width=0.4, colour="orange", alpha=0.9, size=1.3)
+```
+
+
+
+```{r}
+for(m in models){
+  print(m$name)
+  print(summary(m$model)$adj.r.squared)
+}
+```
+
+
+```{r}
+for(m in models){
+  s = summary(m[2])
+  print(s$adj.r.squared)
+}
+```
+
+
