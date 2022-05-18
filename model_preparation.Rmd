@@ -28,12 +28,27 @@ head(data)
 stopifnot(dim(data)[2] == 60)
 ```
 
+```{r}
+dim(data)[1]
+```
 
 # Subsetting training data
 
 ```{r}
-train_percent = 0.1  # percent of initial dataset
-val_percent = 0.1
+subset_size = 3000  # Number of points that we use from the dataset
+
+subsample_indices = sample.int(
+  n = nrow(data),
+  size = subset_size
+)
+
+data = data[subsample_indices, ]
+stopifnot(dim(data)[1] == subset_size)
+```
+
+```{r}
+train_percent = 0.6
+val_percent = 0.2
 train_val_percent = train_percent + val_percent
 test_percent = 1 - train_val_percent
 ```
@@ -63,8 +78,6 @@ ncat('Train size', nrow(train))
 ncat('Validation size', nrow(validation))
 ncat('Test size', nrow(test))
 ```
-
-
 
 ```{r}
 Y_colname = colnames(data)[length(colnames(data))]
@@ -415,7 +428,6 @@ log_cp_backward_coefs = log_best_coefficients$best_cp_coefs
 ```
 
 
-
 ```{r}
 cat(
   'Number of best coefficients', 
@@ -430,11 +442,9 @@ log_cp_backward_coefs
 
 ```{r}
 log_cp_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_cp_backward_coefs])
-```
-
-```{r}
 summary(log_cp_best_model)
 ```
+
 ```{r}
 log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_backward_coefs])
 ```
