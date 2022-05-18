@@ -414,9 +414,6 @@ log_bic_backward_coefs = log_best_coefficients$best_bic_coefs
 log_cp_backward_coefs = log_best_coefficients$best_cp_coefs
 ```
 
-```{r}
-catn('a', 'b', 'c')
-```
 
 
 ```{r}
@@ -447,10 +444,7 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 summary(log_bic_best_model)
 ```
 
-
 # Comparison of models
-## Comparison of R^2
-
 
 ```{r}
 models = list(
@@ -467,12 +461,21 @@ models = list(
 )
 ```
 
-```{r}
-names
-```
-
+## Comparison of R^2
 
 ```{r}
+
+plot_ordered_hist <- function(X, Y, main, xlab, ylab){
+  data = data.frame(Y, X)
+  barplot(
+    data[order(data[,1],decreasing=TRUE),][,1],
+    names.arg=data[order(data[,1],decreasing=TRUE),][,2],
+    main = main,
+    xlab = xlab,
+    ylab = ylab
+  )
+}
+
 names = c()
 r.squareds = c()
 for(m in models){
@@ -480,51 +483,57 @@ for(m in models){
   r.squareds = append(r.squareds, summary(m$model)$adj.r.squared)
 }
 
-barplot(
-  r.squareds,
-  main = 'R^2 adjusted',
+plot_ordered_hist(
+  X = names,
+  Y = r.squareds,
+  main = 'Adjusted R sqared',
   xlab = 'Model name',
-  ylab = 'R^2 adjusted',
-  names.arg = names
+  ylab = 'Adjusted R squared'
 )
 ```
 
-```{r}
 
-```
-
+## Comparison of BIC
 
 ```{r}
-library(ggplot2)
+BICs = c()
 
-# create dummy data
-data <- data.frame(
-  name=letters[1:5],
-  value=sample(seq(4,15),5),
-  sd=c(1,0.2,3,2,4)
+for(m in models){
+  BICs = append(BICs, BIC(m$model))
+}
+
+BICs_norm = BICs / max(BICs)
+plot_ordered_hist(
+  X = names, 
+  Y = BICs_norm, 
+  main = 'Normalized Bayesian Information Criterion (BIC)', 
+  xlab = 'Model name', 
+  ylab = 'BIC'
 )
- 
-# Most basic error bar
-ggplot(data) +
-    geom_bar( aes(x=name, y=value), stat="identity", fill="skyblue", alpha=0.7) +
-    geom_errorbar( aes(x=name, ymin=value-sd, ymax=value+sd), width=0.4, colour="orange", alpha=0.9, size=1.3)
 ```
 
-
+## Comparison of parameters number
 
 ```{r}
+model_sizes = c()
 for(m in models){
-  print(m$name)
-  print(summary(m$model)$adj.r.squared)
+  model_sizes = append(model_sizes, length(coefficients(m$model)))
 }
+model_sizes_norm = model_sizes / max(model_sizes)
+
+plot_ordered_hist(
+  X = names, 
+  Y = model_sizes_norm, 
+  main = 'Number of coefficients', 
+  xlab = 'Model name', 
+  ylab = 'Normalized number of coefficients'
+)
 ```
 
+## Comparison on the test set
 
 ```{r}
-for(m in models){
-  s = summary(m[2])
-  print(s$adj.r.squared)
-}
+
 ```
 
 
