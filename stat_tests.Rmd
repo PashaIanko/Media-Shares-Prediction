@@ -67,6 +67,7 @@ articles_amount = find_majority(
     'weekday_is_sunday'
   )
 )
+
 ```
 ## Is there a difference in a number of shares, depending on the day of publication?
 
@@ -74,17 +75,22 @@ Here, we will use statistical tests.
 For comparing number of shares on weekdays and weekends -> we will use t-test.
 What are assumptions of t test?
 1. Number of shares of one article is independent of number of shares of the other article (debatable)
-2. Shares are normally distributed (not true)
+2. Shares are normally distributed (not true, but for log transform might be true)
+3. Have a similar amount of variance within each group
 
 ```{r}
-
+par(mfrow = c(2, 2))
 hist(data$shares)
-max(data$shares)
-min(data$shares)
+hist(log(data$shares))
+
+qqnorm(data$shares, pch = 1)
+qqline(data$shares, col = "steelblue", lwd = 2)
+
+qqnorm(log(data$shares), pch = 1)
+qqline(log(data$shares), lwd = 2)
+
+par(mfrow = c(1, 1))
 ```
-
-
-
 ```{r}
 vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
 
@@ -103,9 +109,27 @@ vec_factor = factor(
 
 data$weekday = vec_factor
 data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
-
 ```
 
+
+```{r}
+log_weekend_data = log(data[data$is_weekend == T, 'shares'])
+log_workdays_data = log(data[data$is_weekend == F, 'shares'])
+
+par(mfrow = c(2, 2))
+
+hist(log_weekend_data)
+
+qqnorm(log_weekend_data)
+qqline(log_weekend_data)
+
+hist(log_workdays_data)
+
+qqnorm(log_workdays_data)
+qqline(log_workdays_data)
+
+par(mfrow = c(1, 1))
+```
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -118,11 +142,28 @@ boxplot(log(data$shares) ~ data$weekday, outline = F)
 
 par(mfrow = c (1, 1))
 ```
-
+If we work with log(Y) variable, it looks more like from normal distribution (QQ plot).
+We cannot assume equal variances:
 
 ```{r}
-
+test = var.test(log_weekend_data, log_workdays_data, var.equal = T)
+if(test$p.value < 0.05){
+  print('Variances are different!')
+} else{
+  test$p.value
+}
 ```
+So, here an important conclusion follows: t test for unequal variance shows that 
+with high confidence p < 0.01 means are different. The articles, published
+on weekends, have more shares
+
+```{r}
+t.test(
+  log_weekend_data, log_workdays_data,
+  var.equal = F
+)
+```
+
 
 
 
