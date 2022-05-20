@@ -1,0 +1,114 @@
+---
+title: "Data processing"
+output: html_notebook
+---
+
+Ctrl + Shift + Enter - run cell.
+Ctrl + Alt + I - insert new cell.
+Ctrl + Shift + K - preview HTML result document.
+
+# Download data
+
+```{r}
+file_path = './Data/OnlineNewsPopularity.csv'
+data = read.csv(file_path)
+```
+
+
+```{r}
+dim(data)
+head(data)
+```
+
+
+
+## When the majority of the publications are written?
+
+Questions to answer:
+1. When the majority of publications are written
+2. Check week_day_is_* parameter - may be articles, written on a certain day, had
+the highest number of shares?
+
+```{r}
+par(mfrow = c(2, 2))
+
+hist(data$weekday_is_friday)
+hist(data$weekday_is_monday)
+hist(data$weekday_is_saturday)
+hist(data$weekday_is_sunday)
+
+par(mfrow = c(1, 1))
+```
+```{r}
+find_majority <- function(data_, columns){
+  sizes = c()
+  colnames = c()
+  for(c in columns){
+    size = dim(data_[data_[, c] == T, ])[1]
+    sizes = append(sizes, size)
+    colnames = append(colnames, c)
+    #res = append(res, list('size' = size, 'column' = c))
+  }
+  # print(sizes)
+  # print(which.max(sizes))
+  cat('Maximum of articles is published on:', colnames[which.max(sizes)], max(sizes), 'articles', '\n')
+  return(sizes)
+}
+
+articles_amount = find_majority(
+  data, 
+  columns = c(
+    'weekday_is_monday', 
+    'weekday_is_tuesday',
+    'weekday_is_wednesday',
+    'weekday_is_thursday',
+    'weekday_is_friday',
+    'weekday_is_saturday',
+    'weekday_is_sunday'
+  )
+)
+```
+## Is there a difference in a number of shares, depending on the day of publication?
+
+
+```{r}
+vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
+
+vec[which(data$weekday_is_monday == T)] = 'mon'
+vec[which(data$weekday_is_tuesday == T)] = 'tue'
+vec[which(data$weekday_is_wednesday == T)] = 'wed'
+vec[which(data$weekday_is_thursday == T)] = 'thur'
+vec[which(data$weekday_is_friday == T)] = 'fri'
+vec[which(data$weekday_is_saturday == T)] = 'sat'
+vec[which(data$weekday_is_sunday == T)] = 'sun'
+
+vec_factor = factor(
+  vec, 
+  levels = c('mon', 'tue', 'wed', 'thur', 'fri', 'sat', 'sun', labels = levels)
+)
+
+data$weekday = vec_factor
+data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
+
+```
+
+
+```{r}
+par(mfrow = c(1, 2))
+
+boxplot(data$shares ~ data$is_weekend, outline = F)
+boxplot(data$shares ~ data$weekday, outline = F)
+
+par(mfrow = c (1, 1))
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
