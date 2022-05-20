@@ -70,6 +70,20 @@ articles_amount = find_majority(
 ```
 ## Is there a difference in a number of shares, depending on the day of publication?
 
+Here, we will use statistical tests.
+For comparing number of shares on weekdays and weekends -> we will use t-test.
+What are assumptions of t test?
+1. Number of shares of one article is independent of number of shares of the other article (debatable)
+2. Shares are normally distributed (not true)
+
+```{r}
+
+hist(data$shares)
+max(data$shares)
+min(data$shares)
+```
+
+
 
 ```{r}
 vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
@@ -94,10 +108,13 @@ data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
 
 
 ```{r}
-par(mfrow = c(1, 2))
+par(mfrow = c(2, 2))
 
 boxplot(data$shares ~ data$is_weekend, outline = F)
 boxplot(data$shares ~ data$weekday, outline = F)
+
+boxplot(log(data$shares) ~ data$is_weekend, outline = F)
+boxplot(log(data$shares) ~ data$weekday, outline = F)
 
 par(mfrow = c (1, 1))
 ```
