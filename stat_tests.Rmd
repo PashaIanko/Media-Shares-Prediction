@@ -113,8 +113,11 @@ data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
 
 
 ```{r}
-log_weekend_data = log(data[data$is_weekend == T, 'shares'])
-log_workdays_data = log(data[data$is_weekend == F, 'shares'])
+weekend_data = data[data$is_weekend == T, 'shares']
+workdays_data = data[data$is_weekend == F, 'shares']
+
+log_weekend_data = log(weekend_data)
+log_workdays_data = log(workdays_data)
 
 par(mfrow = c(2, 2))
 
@@ -131,6 +134,24 @@ qqline(log_workdays_data)
 par(mfrow = c(1, 1))
 ```
 
+
+```{r}
+par(mfrow = c(2, 2))
+hist(weekend_data)
+
+qqnorm(weekend_data)
+qqline(weekend_data)
+
+
+hist(workdays_data)
+
+qqnorm(workdays_data)
+qqline(workdays_data)
+
+par(mfrow = c(1, 1))
+```
+
+
 ```{r}
 par(mfrow = c(2, 2))
 
@@ -145,6 +166,7 @@ par(mfrow = c (1, 1))
 If we work with log(Y) variable, it looks more like from normal distribution (QQ plot).
 We cannot assume equal variances:
 
+
 ```{r}
 test = var.test(log_weekend_data, log_workdays_data, var.equal = T)
 if(test$p.value < 0.05){
@@ -155,13 +177,51 @@ if(test$p.value < 0.05){
 ```
 So, here an important conclusion follows: t test for unequal variance shows that 
 with high confidence p < 0.01 means are different. The articles, published
-on weekends, have more shares
+on weekends, have more shares. But this difference is negligible, though
+statistically meaningful.
 
 ```{r}
 t.test(
   log_weekend_data, log_workdays_data,
   var.equal = F
 )
+```
+
+## Is there a prefered channel? Which channel is mostly shared?
+
+
+```{r}
+# data$data_channel_is_bus
+# data$data_channel_is_entertainment
+# data$data_channel_is_lifestyle
+# data$data_channel_is_socmed
+# data$data_channel_is_tech
+# data$data_channel_is_world
+boxplot(shares ~ data_channel_is_lifestyle, data = data, outline = F)
+```
+```{r}
+vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
+
+vec[which(data$data_channel_is_bus == T)] = 'bus'  # business
+vec[which(data$data_channel_is_entertainment == T)] = 'ent'
+vec[which(data$data_channel_is_lifestyle == T)] = 'life'
+vec[which(data$data_channel_is_socmed == T)] = 'soc'
+vec[which(data$data_channel_is_tech == T)] = 'tech'
+vec[which(data$data_channel_is_world == T)] = 'world'
+
+vec_factor = factor(
+  vec, 
+  levels = c('mon', 'tue', 'wed', 'thur', 'fri', 'sat', 'sun', labels = levels)
+)
+
+# data$weekday = vec_factor
+# data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
+```
+
+
+
+```{r}
+unique(vec)
 ```
 
 
