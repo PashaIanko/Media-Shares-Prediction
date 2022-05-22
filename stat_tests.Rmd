@@ -47,10 +47,7 @@ find_majority <- function(data_, columns){
     size = dim(data_[data_[, c] == T, ])[1]
     sizes = append(sizes, size)
     colnames = append(colnames, c)
-    #res = append(res, list('size' = size, 'column' = c))
   }
-  # print(sizes)
-  # print(which.max(sizes))
   cat('Maximum of articles is published on:', colnames[which.max(sizes)], max(sizes), 'articles', '\n')
   return(sizes)
 }
@@ -69,6 +66,39 @@ articles_amount = find_majority(
 )
 
 ```
+```{r}
+articles_amount / sum(articles_amount)
+```
+
+```{r}
+plot_pie <- function(values, labels){
+  library(RColorBrewer)
+  myPalette <- brewer.pal(5, "Set2") 
+  
+  # Create Data
+  pie(
+    values, 
+    labels = labels,
+    col = myPalette, 
+    border = 'white'
+  )  
+}
+
+plot_pie(
+  articles_amount,
+  labels = c(
+      "Mon",  # 16%
+      "Tue",  # 18.6%
+      "Wed",  # 18.7%
+      "Thur",  # 18.3%
+      "Fri",  # 14.3%
+      "Sat",  # 6.1%
+      "Sun"  # 6.9%
+  )
+)
+```
+
+
 ## Is there a difference in a number of shares, depending on the day of publication?
 
 Here, we will use statistical tests.
@@ -134,7 +164,6 @@ qqline(log_workdays_data)
 par(mfrow = c(1, 1))
 ```
 
-
 ```{r}
 par(mfrow = c(2, 2))
 hist(weekend_data)
@@ -166,7 +195,6 @@ par(mfrow = c (1, 1))
 If we work with log(Y) variable, it looks more like from normal distribution (QQ plot).
 We cannot assume equal variances:
 
-
 ```{r}
 test = var.test(log_weekend_data, log_workdays_data, var.equal = T)
 if(test$p.value < 0.05){
@@ -177,28 +205,37 @@ if(test$p.value < 0.05){
 ```
 So, here an important conclusion follows: t test for unequal variance shows that 
 with high confidence p < 0.01 means are different. The articles, published
-on weekends, have more shares. But this difference is negligible, though
-statistically meaningful.
+on weekends, have more shares
 
 ```{r}
 t.test(
-  log_weekend_data, log_workdays_data,
+  log_weekend_data, 
+  log_workdays_data,
   var.equal = F
 )
 ```
-
 ## Is there a prefered channel? Which channel is mostly shared?
 
+```{r}
+par(mfrow = c(2, 2))
+
+boxplot(shares ~ data_channel_is_bus, data = data, outline = F)
+boxplot(shares ~ data_channel_is_entertainment, data = data, outline = F)
+boxplot(shares ~ data_channel_is_lifestyle, data = data, outline = F)
+
+par(mfrow = c(1, 1))
+```
 
 ```{r}
-# data$data_channel_is_bus
-# data$data_channel_is_entertainment
-# data$data_channel_is_lifestyle
-# data$data_channel_is_socmed
-# data$data_channel_is_tech
-# data$data_channel_is_world
-boxplot(shares ~ data_channel_is_lifestyle, data = data, outline = F)
+par(mfrow = c(2, 2))
+
+boxplot(shares ~ data_channel_is_socmed, data = data, outline = F)
+boxplot(shares ~ data_channel_is_tech, data = data, outline = F)
+boxplot(shares ~ data_channel_is_world, data = data, outline = F)
+
+par(mfrow = c(1, 1))
 ```
+
 ```{r}
 vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
 
@@ -209,19 +246,71 @@ vec[which(data$data_channel_is_socmed == T)] = 'soc'
 vec[which(data$data_channel_is_tech == T)] = 'tech'
 vec[which(data$data_channel_is_world == T)] = 'world'
 
+vec[which(
+      data$data_channel_is_bus == F &
+      data$data_channel_is_entertainment == F &
+      data$data_channel_is_lifestyle == F &
+      data$data_channel_is_socmed == F &
+      data$data_channel_is_tech == F & 
+      data$data_channel_is_world == F
+)] = 'NA'
+
+
 vec_factor = factor(
   vec, 
-  levels = c('mon', 'tue', 'wed', 'thur', 'fri', 'sat', 'sun', labels = levels)
+  levels = c('bus', 'ent', 'life', 'soc', 'tech', 'world', 'NA', labels = levels)
 )
 
-# data$weekday = vec_factor
-# data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
+data$data_channel_type = vec_factor
+```
+
+On the boxplots below, we can visualize readers' preferences
+
+```{r}
+dim(data[
+      data$data_channel_is_bus == F &
+      data$data_channel_is_entertainment == F &
+      data$data_channel_is_lifestyle == F &
+      data$data_channel_is_socmed == F &
+      data$data_channel_is_tech == F & 
+      data$data_channel_is_world == F,
+  ]
+)
 ```
 
 
+```{r}
+boxplot(shares ~ data_channel_type, data = data, outline = F)
+```
+```{r}
+boxplot(log(shares) ~ data_channel_type, data = data, outline = T)
+```
+## What is the distribution of number of articles, published in certain channel?
 
 ```{r}
-unique(vec)
+unique(data$data_channel_type)
+```
+```{r}
+channel_types = unique(data$data_channel_type)
+
+number_of_articles_by_channel = c()
+for(ch_type in channel_types){
+  # print(ch_type)
+  n = dim(data[data$data_channel_type == ch_type, ])[1]
+  number_of_articles_by_channel = append(number_of_articles_by_channel, n)
+}
+
+plot_pie(
+  values = number_of_articles_by_channel,
+  labels = channel_types
+)
+
+
+cat('Number of articles by channel:', number_of_articles_by_channel, '\n')
+print(channel_types)
+```
+```{r}
+
 ```
 
 
