@@ -277,14 +277,110 @@ dim(data[
   ]
 )
 ```
-
-
 ```{r}
 boxplot(shares ~ data_channel_type, data = data, outline = F)
 ```
 ```{r}
 boxplot(log(shares) ~ data_channel_type, data = data, outline = T)
 ```
+Now we perform statistical test, to make sure if there is a statistically 
+significant difference in the average number of shares, depending on 
+the topic of the article.
+
+For this reason, we will try to leverage ANOVA test.
+The assumptions of ANOVA test are:
+1. Independent observations (we assume, that one article is
+independent of another)
+2. Data for each grouping factor is normally distributed
+3. The groups have common variances
+
+Lets check these assumptions:
+
+```{r}
+groups = c(
+  'bus',
+  'ent',
+  'life',
+  'soc',
+  'world',
+  'NA'
+)
+
+par(mfrow = c(2, 2))
+
+for(group in groups[1:2]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+```{r}
+par(mfrow = c(2, 2))
+
+for(group in groups[3:4]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+par(mfrow = c(2, 2))
+
+for(group in groups[5:6]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+Based on QQ plots, we can perform test on 'bus', 'life' and 'soc' groups
+But before we need to check the equality of variance
+
+```{r}
+head(bartlett_subset)
+```
+
+
+```{r}
+bartlett_subset = data.frame(data[
+    (data$data_channel_type == 'bus') |
+    (data$data_channel_type == 'life') |
+    (data$data_channel_type == 'soc'),
+    
+    c('shares', 'data_channel_type')
+])
+
+dim(bartlett_subset)
+
+bartlett_subset$shares = log(bartlett_subset$shares)
+
+
+bartlett.test(
+  shares ~ data_channel_type,
+  data = bartlett_subset
+)
+```
+Unfortunately, according to Bartlett test, the variance
+cannot be assumed consistent --> we cannot use the ANOVA test
+for comparing several means
+
+
+
 ## What is the distribution of number of articles, published in certain channel?
 
 ```{r}
@@ -309,9 +405,7 @@ plot_pie(
 cat('Number of articles by channel:', number_of_articles_by_channel, '\n')
 print(channel_types)
 ```
-```{r}
 
-```
 
 
 
