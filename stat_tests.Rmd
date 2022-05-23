@@ -428,6 +428,7 @@ data$is_neutral = (rates_difference <= difference_thresh) & (rates_difference >=
 
 ```
 
+
 ```{r}
 par(mfrow = c(2, 2))
 
@@ -437,7 +438,7 @@ hist(as.integer(data$is_neutral))
 
 par(mfrow = c(1, 1))
 ```
-We will use t-test, to check if mean number of shares could be higher for articles with 
+We will try to use t-test, to check if mean number of shares could be higher for articles with 
 more negative words, or it is better to stay neutral, whether positive
 
 The assumptions of t test:
@@ -490,7 +491,10 @@ visualize_normality(data, feature = 'is_positive', take_log = T)
 ```{r}
 visualize_normality(data, feature = 'is_neutral', take_log = T)
 ```
-Unfortunately, Shapiro test shows that even log-transformed data is not normally distributed. 
+Unfortunately, Shapiro test shows that even log-transformed data is not normally distributed,
+for both false and true subsets (subgroups of the binary feature is_positive,
+is_negative, is_neutral)
+
 Therefore, we will try to use a non-parametric Mann Whitney test, which does not require 
 normal distribution.
 
@@ -536,7 +540,7 @@ compare_shapes(df=data, feature='is_neutral', take_log = T)
 par(mfrow = c(1, 1))
 ```
 
-Wilcox (Whitney tests) show, that medians of the subgoupr are statistically different.
+Wilcox (Whitney tests) show, that medians of the subgroup are statistically different.
 Also, below we visualize the boxplots, which intuite, that these features 
 (is_negative, is_positive, is_neutral) can be used as a part of feature engineering
 
@@ -581,6 +585,7 @@ boxplot(log(shares) ~ is_negative, data = data, outline = F)
 boxplot(log(shares) ~ is_positive, data = data, outline = F)
 par(mfrow = c(1, 1))
 ```
+
 
 
 
