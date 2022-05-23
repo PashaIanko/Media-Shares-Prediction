@@ -352,11 +352,6 @@ Based on QQ plots, we can perform test on 'bus', 'life' and 'soc' groups
 But before we need to check the equality of variance
 
 ```{r}
-head(bartlett_subset)
-```
-
-
-```{r}
 bartlett_subset = data.frame(data[
     (data$data_channel_type == 'bus') |
     (data$data_channel_type == 'life') |
@@ -406,7 +401,186 @@ cat('Number of articles by channel:', number_of_articles_by_channel, '\n')
 print(channel_types)
 ```
 
+## Significance of negative content
 
+Here, we can notice new features - rate of positive and negative words
+in the article. Sum of these features is always equal to 1.
+
+From that, we will define, that an article can be called positive, 
+if the rate of positive words is higher than rate of negative words
+
+```{r}
+subset_size = 50
+plot(data$rate_negative_words[1: subset_size], ylim = c(0, 1))
+lines(data$rate_positive_words[1 : subset_size])
+lines(data$rate_negative_words[1: subset_size] + data$rate_positive_words[1:subset_size])
+```
+We try to engineer new features - an article is considered positive, if the rate of positive words
+is much higher (by difference threshold) than the negative rate of a publication
+
+```{r}
+difference_thresh = 0.2
+
+rates_difference = data$rate_positive_words - data$rate_negative_words
+data$is_positive = rates_difference > difference_thresh
+data$is_negative = rates_difference < -difference_thresh
+data$is_neutral = (rates_difference <= difference_thresh) & (rates_difference >= -difference_thresh)
+
+```
+
+```{r}
+par(mfrow = c(2, 2))
+
+hist(as.integer(data$is_positive))
+hist(as.integer(data$is_negative))
+hist(as.integer(data$is_neutral))
+
+par(mfrow = c(1, 1))
+```
+We will use t-test, to check if mean number of shares could be higher for articles with 
+more negative words, or it is better to stay neutral, whether positive
+
+The assumptions of t test:
+1. Independence of one publication on the others (assumed)
+2. Normal distribution within each group partition
+3. Equal variance within groups
+
+First, let us check normality:
+
+```{r}
+
+visualize_normality <- function(df, feature, take_log){
+  cat('Visualizing normality for feature:', feature, '\n')
+  
+  true_subset = df[df[feature] == T, 'shares']
+  false_subset = df[df[feature] == F, 'shares']
+  
+  cat('Size of true subset:', length(true_subset), '\n')
+  cat('Size of false subset:', length(false_subset), '\n')
+  
+  if(take_log == T){
+    true_subset = log(true_subset)
+    false_subset = log(false_subset)
+  }
+  
+  par(mfrow = c(2, 2))
+  
+  hist(true_subset)
+  qqnorm(true_subset)
+  qqline(true_subset)
+  
+  hist(false_subset)
+  qqnorm(false_subset)
+  qqline(false_subset)
+  
+  par(mfrow = c(1, 1))
+  
+  print(shapiro.test(true_subset[1:min(length(true_subset), 5000)]))
+  print(shapiro.test(false_subset[1 : min(length(false_subset), 5000)]))
+  
+}
+```
+
+```{r}
+visualize_normality(data, feature = 'is_negative', take_log = T)
+```
+```{r}
+visualize_normality(data, feature = 'is_positive', take_log = T)
+```
+```{r}
+visualize_normality(data, feature = 'is_neutral', take_log = T)
+```
+Unfortunately, Shapiro test shows that even log-transformed data is not normally distributed. 
+Therefore, we will try to use a non-parametric Mann Whitney test, which does not require 
+normal distribution.
+
+First, we must comply with Mann-Whitney test assumptions:
+
+1. We have an independent variable (number of shares), which consists of two independent groups (e.g., is_positive - True / False dichotomy)
+
+2. Our observations are assumed to be independent (one article VS another)
+
+3. We must check similarity of distribution shapes
+
+```{r}
+compare_shapes <- function(df, feature, take_log){
+  true_subset = df[df[feature] == T, 'shares']
+  false_subset = df[df[feature] == F, 'shares']
+  
+  if(take_log){
+    true_subset = log(true_subset)
+    false_subset = log(false_subset)
+  }
+  
+  c1 <- rgb(173,216,230,max = 255, alpha = 80, names = "lt.blue")
+  c2 <- rgb(255,192,203, max = 255, alpha = 80, names = "lt.pink")
+
+  
+  true_h = hist(true_subset, plot = F)
+  false_h = hist(false_subset, plot = F)
+
+  plot(true_h, col = c1, freq = F)
+  plot(false_h, col = c2, add = T, freq = F)
+}
+```
+
+After the visualization below, we can consider the distributions similar.
+
+```{r}
+par(mfrow = c(2, 2))
+
+compare_shapes(df=data, feature='is_negative', take_log = T)
+compare_shapes(df=data, feature='is_positive', take_log = T)
+compare_shapes(df=data, feature='is_neutral', take_log = T)
+
+par(mfrow = c(1, 1))
+```
+
+Wilcox (Whitney tests) show, that medians of the subgoupr are statistically different.
+Also, below we visualize the boxplots, which intuite, that these features 
+(is_negative, is_positive, is_neutral) can be used as a part of feature engineering
+
+```{r}
+do_wilcox_test <- function(df, feature, take_log){
+  subset1 = df[df[feature] == T, 'shares']
+  subset2 = df[df[feature] == F, 'shares']
+  
+  if(take_log){
+    subset1 = log(subset1)
+    subset2 = log(subset2)
+  }
+  
+  print(
+    wilcox.test(subset1, subset2)
+  )
+}
+
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_negative',
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_positive',
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_neutral',
+  take_log = T
+)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+boxplot(log(shares) ~ is_negative, data = data, outline = F)
+boxplot(log(shares) ~ is_positive, data = data, outline = F)
+par(mfrow = c(1, 1))
+```
 
 
 
