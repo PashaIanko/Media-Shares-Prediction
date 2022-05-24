@@ -15,8 +15,8 @@ library('e1071')
 library(class)
 library(tidyverse)
 library(scales)
-library(ggplot2)
 library(caret)
+library(ggplot2)
 
 ```
 
@@ -645,20 +645,72 @@ model2
  
 
 #KNN 
-```{r}
-kNN3 <- train(shares~., data = train, method = "knn", 
-              maximize = TRUE,
-              trControl = trainControl(method = "cv", number = 10),
-              preProcess=c("center", "scale"))
-ggplot(kNN3) + geom_line() + geom_smooth() + theme_light()
 
-predictedkNN3 <- predict(kNN3, data = test)
-confusionMatrix(predictedkNN3, test$shares)
+```{r}
+set.seed(123)
+dat.d <- sample(1:nrow(data),size=nrow(data)*0.7,replace = FALSE) #random selection of 70% data.
+ 
+train.data <- data[dat.d,] # 70% training data
+test.data <- data[-dat.d,] # remaining 30% test data
+
+```
+
+```{r}
+#Creating seperate dataframe for 'shares' feature which is our target.
+train.share <- data[dat.d,1]
+test.share <-data[-dat.d,1]
+
+```
+
+```{r}
+str(data)
+```
+
+```{r}
+NROW(train.share) 
+```
+o, we have 13978 observations in our training data set. The square root of 13978 is around 118.23, therefore we’ll create two models. One with ‘K’ value as 118 and the other model with a ‘K’ value as 119.
+
+```{r}
+knn.118 <- knn(train=train.data, test=test.data, cl=train.share, k=118)
+knn.119 <- knn(train=train.data, test=test.data, cl=train.share, k=119)
+
+```
+
+
+#Compute the accuracy 
+```{r}
+#Calculate the proportion of correct classification for k = 118, 119
+ACC.118 <- 100 * sum(test.share == knn.118)/NROW(test.share)
+ACC.119 <- 100 * sum(test.share == knn.119)/NROW(test.share)
+ 
+ACC.118
+
+ACC.119
+
 ```
 
 
 ```{r}
+# Check prediction against actual value in tabular form for k=118
+table(knn.118 ,test.share)
+```
+
+```{r}
+# Check prediction against actual value in tabular form for k=119
+table(knn.119 ,test.share)
+```
+
+
+We can also use the confusion matrix to calculate the accuracy of the KNN model: 
+```{r}
+confusionMatrix(table(knn.118 ,test.share))
+```
+
+#Optimization  
+
 #SVM
+```{r}
 set.seed(123)
 trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
 svm_Linear <- train(shares ~., data = train, method = "svmLinear",
