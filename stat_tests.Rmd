@@ -523,7 +523,7 @@ compare_shapes <- function(df, feature, take_log){
   true_h = hist(true_subset, plot = F)
   false_h = hist(false_subset, plot = F)
 
-  plot(true_h, col = c1, freq = F)
+  plot(true_h, col = c1, freq = F, ylim = c(0, 1))
   plot(false_h, col = c2, add = T, freq = F)
 }
 ```
@@ -587,7 +587,52 @@ par(mfrow = c(1, 1))
 ```
 
 
+## Does media (photos, videos) in posts affect its success?
 
+```{r}
+data$has_imgs = data$num_imgs > 0
+data$has_videos = data$num_videos > 0
+
+par(mfrow = c(1, 2))
+boxplot(log(shares) ~ has_imgs, data = data, outline = F)
+boxplot(log(shares) ~ has_videos, data = data, outline = F)
+par(mfrow = c(1, 1))
+
+print(dim(data[data$has_imgs == F, ]))
+print(dim(data[data$has_videos == F, ]))
+```
+
+```{r}
+visualize_normality(data, feature = 'has_imgs', take_log = T)
+```
+
+```{r}
+visualize_normality(data, feature = 'has_videos', take_log = T)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+
+compare_shapes(df = data, feature = 'has_imgs', take_log = T)
+compare_shapes(df = data, feature = 'has_videos', take_log = T)
+
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+do_wilcox_test(
+  df = data, 
+  feature = 'has_imgs', 
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'has_videos',
+  take_log = T
+)
+```
 
 
 
