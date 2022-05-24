@@ -24,8 +24,14 @@ library(ggplot2)
 # Download data
 
 ```{r}
-file_path = './Data/OnlineNewsPopularity_processed.csv'
-data = read.csv(file_path)
+#file_path = './Data/OnlineNewsPopularity_processed.csv'
+#data = read.csv(file_path)
+#print(dim(data))
+#head(data)
+```
+
+```{r}
+data <- read.csv('C://Users//c//OneDrive//Bureau//Media-Shares-Prediction//OnlineNewsPopularity_processed.csv')
 print(dim(data))
 head(data)
 ```
@@ -663,7 +669,9 @@ test.share <-data[-dat.d,1]
 ```
 
 ```{r}
+anyNA(data)
 str(data)
+#summary(data)
 ```
 
 ```{r}
@@ -707,20 +715,53 @@ We can also use the confusion matrix to calculate the accuracy of the KNN model:
 confusionMatrix(table(knn.118 ,test.share))
 ```
 
-#Optimization  
+#Optimization 
+
+```{r}
+
+```
+
+
+
+
 
 #SVM
 ```{r}
-set.seed(123)
-trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-svm_Linear <- train(shares ~., data = train, method = "svmLinear",
-                    trControl=trctrl,
-                    preProcess = c("center", "scale"),
-                    tuneLength = 10)
-svm_pred <- predict(svm_Linear, data = test)
+#split data into training set and training set 
 
-plot(svm_Linear_Grid)
-confusionMatrix(svm_pred, test$shares )
+intrain <- createDataPartition(y = data$shares, p= 0.7, list = FALSE)
+training <- data[intrain,]
+testing <- data[-intrain,]
+```
+
+```{r}
+dim(training); 
+dim(testing);
+```
+
+```{r}
+training[["shares"]] = factor(training[["shares"]])
+```
+
+```{r}
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+```
+
+```{r}
+svm_Linear <- train(shares ~., data = training, method = "svmLinear", trControl=trctrl,preProcess = c("center", "scale"), tuneLength = 10)
+```
+
+```{r}
+svm_Linear
+```
+
+```{r}
+test_pred <- predict(svm_Linear, newdata = testing)
+test_pred
+```
+
+```{r}
+confusionMatrix(table(test_pred, testing$shares))
 ```
 
 
