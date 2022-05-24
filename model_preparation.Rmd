@@ -10,6 +10,14 @@ Ctrl + Shift + K - preview HTML result document.
 # Packages
 ```{r}
 library(leaps)
+library('randomForest')
+library('e1071')
+library(class)
+library(tidyverse)
+library(scales)
+library(ggplot2)
+library(caret)
+
 ```
 
 
@@ -21,6 +29,7 @@ data = read.csv(file_path)
 print(dim(data))
 head(data)
 ```
+
 
 ```{r}
 data = data[, -1] # removing url column
@@ -569,7 +578,98 @@ plot_ordered_hist(
 )
 ```
 
+#Random Forest 
 
+```{r}
+set.seed(123)
+model1 <- randomForest(train_val [,Y_colname] ~ .,data = train_val)
+model1
+plot(model1)
+
+```
+
+```{r}
+# number of trees with lowest MSE- lowest error rate
+which.min(model1$mse) 
+
+# RMSE of this optimal random forest
+sqrt(model1$mse[which.min(model1$mse)]) 
+```
+
+```{r}
+##Rf- predicting accuracy using validation set
+# validation data
+
+x_test <- validation[setdiff(names(validation), "Y_colname")] ##all predictors of the valid set
+y_test <- validation$Y_colname
+
+rf_oob_comp <- randomForest(train[,Y_colname] ~ .,data = train, xtest = x_test,ytest = y_test)
+```
+
+#Extract OOB & Validation errors
+```{r}
+oob <- sqrt(rf_oob_comp$mse)
+validation_error <- sqrt(rf_oob_comp$test$mse)
+```
+
+# Compare error rates
+```{r}
+tibble::tibble(
+  'Out of Bag Error' = oob,
+  'Test error' = validation_error,
+  ntrees = 1:rf_oob_comp$ntree) %>% gather(Metric, RMSE, -ntrees) %>% ggplot(aes(ntrees, RMSE, color = Metric)) + geom_line() + scale_y_continuous(labels = comma) + xlab("Number of trees")
+
+```
+
+
+```{r}
+##Tunning the model
+##tune the mtry parameter starting from mtry=5 to obtain optimal value of OOB error
+# names of features of the initial train set
+features <- setdiff(names(train), "Y_colname")
+set.seed(123)
+
+##start with mtry = 5 and increases by a factor of 1.5 until the OOB error stops improving by 1%. 
+
+model2 <- tuneRF(
+  x = train[features],
+  y = train$Y_colname,
+  ntreeTry   = 500,
+  mtryStart  = 5,
+  stepFactor = 1.5,
+  improve    = 0.01,
+  trace      = FALSE ) 
+model2
+```
+
+ 
+
+#KNN 
+```{r}
+kNN3 <- train(shares~., data = train, method = "knn", 
+              maximize = TRUE,
+              trControl = trainControl(method = "cv", number = 10),
+              preProcess=c("center", "scale"))
+ggplot(kNN3) + geom_line() + geom_smooth() + theme_light()
+
+predictedkNN3 <- predict(kNN3, data = test)
+confusionMatrix(predictedkNN3, test$shares)
+```
+
+
+```{r}
+#SVM
+set.seed(123)
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+svm_Linear <- train(shares ~., data = train, method = "svmLinear",
+                    trControl=trctrl,
+                    preProcess = c("center", "scale"),
+                    tuneLength = 10)
+svm_pred <- predict(svm_Linear, data = test)
+
+plot(svm_Linear_Grid)
+confusionMatrix(svm_pred, test$shares )
+```
 
 
 
