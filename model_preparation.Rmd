@@ -226,16 +226,8 @@ plot(full_model)
 par(mfrow = c(1, 1))
 ```
 
-```{r}
-qqnorm(rstandard(full_model))
-qqline(rstandard(full_model))
-```
-
 ### Model residuals plot
 
-```{r}
-colnames(train)
-```
 ```{r}
 plot_residuals <- function(model){
   plot(
@@ -290,12 +282,6 @@ abline(full_model)
 # Update model
 # red.mod <- update(full.mod, ~.-weight)
 # summary(red.mod)
-```
-
-```{r}
-e <- residuals(full_model)
-RSS <- sum(e^2)
-RSS
 ```
 
 ```{r}
@@ -413,9 +399,11 @@ plot_subsets_summary <- function(subsets_model){
 plot_subsets_summary(forward_subsets)
 ```
 
+
 ```{r}
 plot_subsets_summary(backward_subsets)
 ```
+
 ## Resume of model selection (best number of parameters) and building these models
 
 ```{r}
@@ -454,6 +442,7 @@ n_best_cp_fwd = best_params_forward$best_cp
 cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
 cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
 ```
+
 ```{r}
 best_forward_coefs = get_best_coefficients(forward_subsets)
 best_backward_coefs = get_best_coefficients(backward_subsets)
@@ -528,9 +517,12 @@ log_backward_subsets = regsubsets(
 ```{r}
 plot_subsets_summary(log_forward_subsets)
 ```
+
 ```{r}
 plot_subsets_summary(log_backward_subsets)
 ```
+
+
 ```{r}
 log_best_coefficients = get_best_coefficients(log_backward_subsets)
 log_bic_backward_coefs = log_best_coefficients$best_bic_coefs
@@ -565,6 +557,32 @@ summary(log_bic_best_model)
 ```
 
 # Comparison of models
+
+How do we choose proper criteria for comparing models? We have several options:
+1. R^2 (adjusted) on validation set
+2. R^2 (adjusted) on train set
+3. Bayesian Information Criteria
+4. Akaike information criteria
+5. Mallow's Cp criteria
+
+We select the proper characteristics, according to following considerations:
+1. Cp, AIC, BIC and adjusted R^2 - all these account for both good fit
+and simplicity of the model
+2. Validation R^2 parameter is preferred, as it shows the performance on 
+the unseen data. Ideally, a cross-validation adjusted R^2 metrics will
+give better understanding
+3. Mallow's Cp and AIC are equivalent and result in the selection of
+the same model
+4. We are looking to minimize Cp, AIC and BIC, but to maximize R^2-related
+metrics
+5. BIC statistics penalizer big models heavier that Cp and AIC --> BIC criterion
+results in selection of more 'lightweight' model
+
+According to this, we will compare the models based on following characteristics:
+1. (Cross) validation adjusted R^2
+2. AIC (or, equivalently, Mallow's Cp)
+3. BIC (BIC criterion will be of the highest priority, if we tartget at the
+simplest model possible)
 
 ```{r}
 models = list(
