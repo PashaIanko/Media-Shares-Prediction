@@ -1,0 +1,639 @@
+---
+title: "Data processing"
+output: html_notebook
+---
+
+Ctrl + Shift + Enter - run cell.
+Ctrl + Alt + I - insert new cell.
+Ctrl + Shift + K - preview HTML result document.
+
+# Download data
+
+```{r}
+file_path = './Data/OnlineNewsPopularity.csv'
+data = read.csv(file_path)
+```
+
+
+```{r}
+dim(data)
+head(data)
+```
+
+
+
+## When the majority of the publications are written?
+
+Questions to answer:
+1. When the majority of publications are written
+2. Check week_day_is_* parameter - may be articles, written on a certain day, had
+the highest number of shares?
+
+```{r}
+par(mfrow = c(2, 2))
+
+hist(data$weekday_is_friday)
+hist(data$weekday_is_monday)
+hist(data$weekday_is_saturday)
+hist(data$weekday_is_sunday)
+
+par(mfrow = c(1, 1))
+```
+```{r}
+find_majority <- function(data_, columns){
+  sizes = c()
+  colnames = c()
+  for(c in columns){
+    size = dim(data_[data_[, c] == T, ])[1]
+    sizes = append(sizes, size)
+    colnames = append(colnames, c)
+  }
+  cat('Maximum of articles is published on:', colnames[which.max(sizes)], max(sizes), 'articles', '\n')
+  return(sizes)
+}
+
+articles_amount = find_majority(
+  data, 
+  columns = c(
+    'weekday_is_monday', 
+    'weekday_is_tuesday',
+    'weekday_is_wednesday',
+    'weekday_is_thursday',
+    'weekday_is_friday',
+    'weekday_is_saturday',
+    'weekday_is_sunday'
+  )
+)
+
+```
+```{r}
+articles_amount / sum(articles_amount)
+```
+
+```{r}
+plot_pie <- function(values, labels){
+  library(RColorBrewer)
+  myPalette <- brewer.pal(5, "Set2") 
+  
+  # Create Data
+  pie(
+    values, 
+    labels = labels,
+    col = myPalette, 
+    border = 'white'
+  )  
+}
+
+plot_pie(
+  articles_amount,
+  labels = c(
+      "Mon",  # 16%
+      "Tue",  # 18.6%
+      "Wed",  # 18.7%
+      "Thur",  # 18.3%
+      "Fri",  # 14.3%
+      "Sat",  # 6.1%
+      "Sun"  # 6.9%
+  )
+)
+```
+
+
+## Is there a difference in a number of shares, depending on the day of publication?
+
+Here, we will use statistical tests.
+For comparing number of shares on weekdays and weekends -> we will use t-test.
+What are assumptions of t test?
+1. Number of shares of one article is independent of number of shares of the other article (debatable)
+2. Shares are normally distributed (not true, but for log transform might be true)
+3. Have a similar amount of variance within each group
+
+```{r}
+par(mfrow = c(2, 2))
+hist(data$shares)
+hist(log(data$shares))
+
+qqnorm(data$shares, pch = 1)
+qqline(data$shares, col = "steelblue", lwd = 2)
+
+qqnorm(log(data$shares), pch = 1)
+qqline(log(data$shares), lwd = 2)
+
+par(mfrow = c(1, 1))
+```
+```{r}
+vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
+
+vec[which(data$weekday_is_monday == T)] = 'mon'
+vec[which(data$weekday_is_tuesday == T)] = 'tue'
+vec[which(data$weekday_is_wednesday == T)] = 'wed'
+vec[which(data$weekday_is_thursday == T)] = 'thur'
+vec[which(data$weekday_is_friday == T)] = 'fri'
+vec[which(data$weekday_is_saturday == T)] = 'sat'
+vec[which(data$weekday_is_sunday == T)] = 'sun'
+
+vec_factor = factor(
+  vec, 
+  levels = c('mon', 'tue', 'wed', 'thur', 'fri', 'sat', 'sun', labels = levels)
+)
+
+data$weekday = vec_factor
+data$is_weekend = data$weekday_is_sunday | data$weekday_is_saturday
+```
+
+
+```{r}
+weekend_data = data[data$is_weekend == T, 'shares']
+workdays_data = data[data$is_weekend == F, 'shares']
+
+log_weekend_data = log(weekend_data)
+log_workdays_data = log(workdays_data)
+
+par(mfrow = c(2, 2))
+
+hist(log_weekend_data)
+
+qqnorm(log_weekend_data)
+qqline(log_weekend_data)
+
+hist(log_workdays_data)
+
+qqnorm(log_workdays_data)
+qqline(log_workdays_data)
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+par(mfrow = c(2, 2))
+hist(weekend_data)
+
+qqnorm(weekend_data)
+qqline(weekend_data)
+
+
+hist(workdays_data)
+
+qqnorm(workdays_data)
+qqline(workdays_data)
+
+par(mfrow = c(1, 1))
+```
+
+
+```{r}
+par(mfrow = c(2, 2))
+
+boxplot(data$shares ~ data$is_weekend, outline = F)
+boxplot(data$shares ~ data$weekday, outline = F)
+
+boxplot(log(data$shares) ~ data$is_weekend, outline = F)
+boxplot(log(data$shares) ~ data$weekday, outline = F)
+
+par(mfrow = c (1, 1))
+```
+If we work with log(Y) variable, it looks more like from normal distribution (QQ plot).
+We cannot assume equal variances:
+
+```{r}
+test = var.test(log_weekend_data, log_workdays_data, var.equal = T)
+if(test$p.value < 0.05){
+  print('Variances are different!')
+} else{
+  test$p.value
+}
+```
+So, here an important conclusion follows: t test for unequal variance shows that 
+with high confidence p < 0.01 means are different. The articles, published
+on weekends, have more shares
+
+```{r}
+t.test(
+  log_weekend_data, 
+  log_workdays_data,
+  var.equal = F
+)
+```
+## Is there a prefered channel? Which channel is mostly shared?
+
+```{r}
+par(mfrow = c(2, 2))
+
+boxplot(shares ~ data_channel_is_bus, data = data, outline = F)
+boxplot(shares ~ data_channel_is_entertainment, data = data, outline = F)
+boxplot(shares ~ data_channel_is_lifestyle, data = data, outline = F)
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+par(mfrow = c(2, 2))
+
+boxplot(shares ~ data_channel_is_socmed, data = data, outline = F)
+boxplot(shares ~ data_channel_is_tech, data = data, outline = F)
+boxplot(shares ~ data_channel_is_world, data = data, outline = F)
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
+
+vec[which(data$data_channel_is_bus == T)] = 'bus'  # business
+vec[which(data$data_channel_is_entertainment == T)] = 'ent'
+vec[which(data$data_channel_is_lifestyle == T)] = 'life'
+vec[which(data$data_channel_is_socmed == T)] = 'soc'
+vec[which(data$data_channel_is_tech == T)] = 'tech'
+vec[which(data$data_channel_is_world == T)] = 'world'
+
+vec[which(
+      data$data_channel_is_bus == F &
+      data$data_channel_is_entertainment == F &
+      data$data_channel_is_lifestyle == F &
+      data$data_channel_is_socmed == F &
+      data$data_channel_is_tech == F & 
+      data$data_channel_is_world == F
+)] = 'NA'
+
+
+vec_factor = factor(
+  vec, 
+  levels = c('bus', 'ent', 'life', 'soc', 'tech', 'world', 'NA', labels = levels)
+)
+
+data$data_channel_type = vec_factor
+```
+
+On the boxplots below, we can visualize readers' preferences
+
+```{r}
+dim(data[
+      data$data_channel_is_bus == F &
+      data$data_channel_is_entertainment == F &
+      data$data_channel_is_lifestyle == F &
+      data$data_channel_is_socmed == F &
+      data$data_channel_is_tech == F & 
+      data$data_channel_is_world == F,
+  ]
+)
+```
+```{r}
+boxplot(shares ~ data_channel_type, data = data, outline = F)
+```
+```{r}
+boxplot(log(shares) ~ data_channel_type, data = data, outline = T)
+```
+Now we perform statistical test, to make sure if there is a statistically 
+significant difference in the average number of shares, depending on 
+the topic of the article.
+
+For this reason, we will try to leverage ANOVA test.
+The assumptions of ANOVA test are:
+1. Independent observations (we assume, that one article is
+independent of another)
+2. Data for each grouping factor is normally distributed
+3. The groups have common variances
+
+Lets check these assumptions:
+
+```{r}
+groups = c(
+  'bus',
+  'ent',
+  'life',
+  'soc',
+  'world',
+  'NA'
+)
+
+par(mfrow = c(2, 2))
+
+for(group in groups[1:2]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+```{r}
+par(mfrow = c(2, 2))
+
+for(group in groups[3:4]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+par(mfrow = c(2, 2))
+
+for(group in groups[5:6]){
+  subset = log(data[data$data_channel_type == group, ]$shares)
+  
+  hist(subset)
+  
+  qqnorm(subset)
+  qqline(subset)
+}
+
+par(mfrow = c(1, 1))
+```
+Based on QQ plots, we can perform test on 'bus', 'life' and 'soc' groups
+But before we need to check the equality of variance
+
+```{r}
+bartlett_subset = data.frame(data[
+    (data$data_channel_type == 'bus') |
+    (data$data_channel_type == 'life') |
+    (data$data_channel_type == 'soc'),
+    
+    c('shares', 'data_channel_type')
+])
+
+dim(bartlett_subset)
+
+bartlett_subset$shares = log(bartlett_subset$shares)
+
+
+bartlett.test(
+  shares ~ data_channel_type,
+  data = bartlett_subset
+)
+```
+Unfortunately, according to Bartlett test, the variance
+cannot be assumed consistent --> we cannot use the ANOVA test
+for comparing several means
+
+
+
+## What is the distribution of number of articles, published in certain channel?
+
+```{r}
+unique(data$data_channel_type)
+```
+```{r}
+channel_types = unique(data$data_channel_type)
+
+number_of_articles_by_channel = c()
+for(ch_type in channel_types){
+  # print(ch_type)
+  n = dim(data[data$data_channel_type == ch_type, ])[1]
+  number_of_articles_by_channel = append(number_of_articles_by_channel, n)
+}
+
+plot_pie(
+  values = number_of_articles_by_channel,
+  labels = channel_types
+)
+
+
+cat('Number of articles by channel:', number_of_articles_by_channel, '\n')
+print(channel_types)
+```
+
+## Significance of negative content
+
+Here, we can notice new features - rate of positive and negative words
+in the article. Sum of these features is always equal to 1.
+
+From that, we will define, that an article can be called positive, 
+if the rate of positive words is higher than rate of negative words
+
+```{r}
+subset_size = 50
+plot(data$rate_negative_words[1: subset_size], ylim = c(0, 1))
+lines(data$rate_positive_words[1 : subset_size])
+lines(data$rate_negative_words[1: subset_size] + data$rate_positive_words[1:subset_size])
+```
+We try to engineer new features - an article is considered positive, if the rate of positive words
+is much higher (by difference threshold) than the negative rate of a publication
+
+```{r}
+difference_thresh = 0.2
+
+rates_difference = data$rate_positive_words - data$rate_negative_words
+data$is_positive = rates_difference > difference_thresh
+data$is_negative = rates_difference < -difference_thresh
+data$is_neutral = (rates_difference <= difference_thresh) & (rates_difference >= -difference_thresh)
+
+```
+
+
+```{r}
+par(mfrow = c(2, 2))
+
+hist(as.integer(data$is_positive))
+hist(as.integer(data$is_negative))
+hist(as.integer(data$is_neutral))
+
+par(mfrow = c(1, 1))
+```
+We will try to use t-test, to check if mean number of shares could be higher for articles with 
+more negative words, or it is better to stay neutral, whether positive
+
+The assumptions of t test:
+1. Independence of one publication on the others (assumed)
+2. Normal distribution within each group partition
+3. Equal variance within groups
+
+First, let us check normality:
+
+```{r}
+
+visualize_normality <- function(df, feature, take_log){
+  cat('Visualizing normality for feature:', feature, '\n')
+  
+  true_subset = df[df[feature] == T, 'shares']
+  false_subset = df[df[feature] == F, 'shares']
+  
+  cat('Size of true subset:', length(true_subset), '\n')
+  cat('Size of false subset:', length(false_subset), '\n')
+  
+  if(take_log == T){
+    true_subset = log(true_subset)
+    false_subset = log(false_subset)
+  }
+  
+  par(mfrow = c(2, 2))
+  
+  hist(true_subset)
+  qqnorm(true_subset)
+  qqline(true_subset)
+  
+  hist(false_subset)
+  qqnorm(false_subset)
+  qqline(false_subset)
+  
+  par(mfrow = c(1, 1))
+  
+  print(shapiro.test(true_subset[1:min(length(true_subset), 5000)]))
+  print(shapiro.test(false_subset[1 : min(length(false_subset), 5000)]))
+  
+}
+```
+
+```{r}
+visualize_normality(data, feature = 'is_negative', take_log = T)
+```
+```{r}
+visualize_normality(data, feature = 'is_positive', take_log = T)
+```
+```{r}
+visualize_normality(data, feature = 'is_neutral', take_log = T)
+```
+Unfortunately, Shapiro test shows that even log-transformed data is not normally distributed,
+for both false and true subsets (subgroups of the binary feature is_positive,
+is_negative, is_neutral)
+
+Therefore, we will try to use a non-parametric Mann Whitney test, which does not require 
+normal distribution.
+
+First, we must comply with Mann-Whitney test assumptions:
+
+1. We have an independent variable (number of shares), which consists of two independent groups (e.g., is_positive - True / False dichotomy)
+
+2. Our observations are assumed to be independent (one article VS another)
+
+3. We must check similarity of distribution shapes
+
+```{r}
+compare_shapes <- function(df, feature, take_log){
+  true_subset = df[df[feature] == T, 'shares']
+  false_subset = df[df[feature] == F, 'shares']
+  
+  if(take_log){
+    true_subset = log(true_subset)
+    false_subset = log(false_subset)
+  }
+  
+  c1 <- rgb(173,216,230,max = 255, alpha = 80, names = "lt.blue")
+  c2 <- rgb(255,192,203, max = 255, alpha = 80, names = "lt.pink")
+
+  
+  true_h = hist(true_subset, plot = F)
+  false_h = hist(false_subset, plot = F)
+
+  plot(true_h, col = c1, freq = F, ylim = c(0, 1))
+  plot(false_h, col = c2, add = T, freq = F)
+}
+```
+
+After the visualization below, we can consider the distributions similar.
+
+```{r}
+par(mfrow = c(2, 2))
+
+compare_shapes(df=data, feature='is_negative', take_log = T)
+compare_shapes(df=data, feature='is_positive', take_log = T)
+compare_shapes(df=data, feature='is_neutral', take_log = T)
+
+par(mfrow = c(1, 1))
+```
+
+Wilcox (Whitney tests) show, that medians of the subgroup are statistically different.
+Also, below we visualize the boxplots, which intuite, that these features 
+(is_negative, is_positive, is_neutral) can be used as a part of feature engineering
+
+```{r}
+do_wilcox_test <- function(df, feature, take_log){
+  subset1 = df[df[feature] == T, 'shares']
+  subset2 = df[df[feature] == F, 'shares']
+  
+  if(take_log){
+    subset1 = log(subset1)
+    subset2 = log(subset2)
+  }
+  
+  print(
+    wilcox.test(subset1, subset2)
+  )
+}
+
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_negative',
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_positive',
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'is_neutral',
+  take_log = T
+)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+boxplot(log(shares) ~ is_negative, data = data, outline = F)
+boxplot(log(shares) ~ is_positive, data = data, outline = F)
+par(mfrow = c(1, 1))
+```
+
+
+## Does media (photos, videos) in posts affect its success?
+
+```{r}
+data$has_imgs = data$num_imgs > 0
+data$has_videos = data$num_videos > 0
+
+par(mfrow = c(1, 2))
+boxplot(log(shares) ~ has_imgs, data = data, outline = F)
+boxplot(log(shares) ~ has_videos, data = data, outline = F)
+par(mfrow = c(1, 1))
+
+print(dim(data[data$has_imgs == F, ]))
+print(dim(data[data$has_videos == F, ]))
+```
+
+```{r}
+visualize_normality(data, feature = 'has_imgs', take_log = T)
+```
+
+```{r}
+visualize_normality(data, feature = 'has_videos', take_log = T)
+```
+
+```{r}
+par(mfrow = c(1, 2))
+
+compare_shapes(df = data, feature = 'has_imgs', take_log = T)
+compare_shapes(df = data, feature = 'has_videos', take_log = T)
+
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+do_wilcox_test(
+  df = data, 
+  feature = 'has_imgs', 
+  take_log = T
+)
+
+do_wilcox_test(
+  df = data,
+  feature = 'has_videos',
+  take_log = T
+)
+```
+
+
+
+

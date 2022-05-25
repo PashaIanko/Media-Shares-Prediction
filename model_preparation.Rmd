@@ -89,6 +89,125 @@ stopifnot(length(Y_colname) + length(X_colnames) == dim(data)[2])
 stopifnot(dim(train)[2] - 1 == dim(train[, X_colnames])[2])
 ```
 
+# Linear regression assumptions
+
+To use linear models, we have to answer a question - are they appropriate
+for this task? To do that, we will check the compliance with linear model 
+assumptions:
+
+1. There is a linear relationship between the predictors (x) and the outcome (y)
+2. Predictors (x) are independent and observed with negligible error
+3. Residual Errors have a mean value of zero
+4. Residual Errors have constant variance
+5. Residual Errors are independent from each other and predictors (x)
+
+```{r}
+assumption_test_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
+assumption_test_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, X_colnames])
+
+assumption_test_model_sqrt = lm(
+  sqrt(train[,Y_colname]) ~ ., 
+  data = train[, X_colnames]
+)
+```
+
+
+
+### Assumption 1: Check linearity of the data
+
+To check, if there is a linear relationship between target and predictors (linearity of the data), we 
+will use Residuals VS Fitted plot
+
+From the plots below, we see that residual plots for
+GLM model with log(Y) transform has residuals, centered
+around zero, without funnel shape, while full linear model demonstrates the decline of residuals. This speaks in favor of appropriateness of log(Y) transform
+and using linear model.
+
+
+```{r}
+par(mfrow = c(1, 1))
+
+plot(assumption_test_model, 1)
+plot(assumption_test_model_log, 1)
+plot(assumption_test_model_sqrt, 1)
+
+par(mfrow = c(1, 1))
+```
+
+### Assumption 2: Independence of predictors
+
+Second assumption - is that predictors are independent
+and observed with negligible error.
+
+For this, we use Durbin Watson test. The null hypothesis of the test states that there is no 
+auto-correlation of residuals. Implicitly, our
+target is not enough evidence for rejecting H0 hypotheses. 
+
+We perform the test for full linear and GLM models.
+As seen below, both statistics give evidence in 
+favor of correlated residuals, which is an argument
+against using linear model.
+
+However, for the log(Y) model, the p-value level
+almost achieves 0.05, without feature selection. Therefore, we still can try to take advantage of this
+model.
+
+```{r}
+library(car)
+durbinWatsonTest(assumption_test_model)
+durbinWatsonTest(assumption_test_model_log)
+durbinWatsonTest(assumption_test_model_sqrt)
+```
+
+### Assumption 3: residual errors have zero mean value
+
+From the residual plots below, we can see that 
+GLM model has almost zero mean of residuals.
+
+```{r}
+par(mfrow = c(2, 2))
+
+plot(assumption_test_model, 1)
+plot(assumption_test_model_log, 1)
+plot(assumption_test_model_sqrt, 1)
+
+par(mfrow = c(1, 1))
+```
+
+### Assumption 4: residual errors have constant variance
+
+Unfortunately, this assumption is not met for both models. The scale-location
+plot is assumed to be centered around zero.
+
+```{r}
+par(mfrow = c(2, 2))
+
+plot(assumption_test_model, 3)
+plot(assumption_test_model_log, 3)
+plot(assumption_test_model_sqrt, 3)
+
+par(mfrow = c(1, 1))
+```
+Also, we can use an NCV (non constant error variance)
+test for these models. As it is seen from the cell 
+below, this assumption is not met.
+
+```{r}
+library(car)
+
+ncvTest(assumption_test_model)
+ncvTest(assumption_test_model_log)
+ncvTest(assumption_test_model_sqrt)
+```
+### Assumption 5: Residual Errors Are Independent from Each Other and Predictors
+
+[TODO: check this!!!]
+
+As a conclusion, usage of linear models and GLM is 
+debatable for this task. However, for the log(Y) 
+transformation, this model meets three of four assumptions. So, we will consider
+this model and compare it with the rest.
+
 
 # Full linear model
 
@@ -183,11 +302,6 @@ RSS
 plot(train$n_tokens_content, residuals(train))
 plot(train$average_token_length, residuals(train))
 ```
-
-
-
-
-
 
 
 # Full linear model (Y log transform) -- Poisson GLM
