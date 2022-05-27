@@ -226,16 +226,8 @@ plot(full_model)
 par(mfrow = c(1, 1))
 ```
 
-```{r}
-qqnorm(rstandard(full_model))
-qqline(rstandard(full_model))
-```
-
 ### Model residuals plot
 
-```{r}
-colnames(train)
-```
 ```{r}
 plot_residuals <- function(model){
   plot(
@@ -290,12 +282,6 @@ abline(full_model)
 # Update model
 # red.mod <- update(full.mod, ~.-weight)
 # summary(red.mod)
-```
-
-```{r}
-e <- residuals(full_model)
-RSS <- sum(e^2)
-RSS
 ```
 
 ```{r}
@@ -407,8 +393,6 @@ plot_subsets_summary <- function(subsets_model){
 }
 ```
 
-## Model summary
-
 ```{r}
 plot_subsets_summary(forward_subsets)
 ```
@@ -416,6 +400,7 @@ plot_subsets_summary(forward_subsets)
 ```{r}
 plot_subsets_summary(backward_subsets)
 ```
+
 ## Resume of model selection (best number of parameters) and building these models
 
 ```{r}
@@ -454,6 +439,7 @@ n_best_cp_fwd = best_params_forward$best_cp
 cat('Best # of parameters (backward)', n_best_bic_back, n_best_cp_back, '\n')
 cat('Best # of parameters (forward)', n_best_bic_fwd, n_best_cp_fwd, '\n')
 ```
+
 ```{r}
 best_forward_coefs = get_best_coefficients(forward_subsets)
 best_backward_coefs = get_best_coefficients(backward_subsets)
@@ -485,7 +471,6 @@ plot(forward_subsets, scale = 'r2')
 
 Up to now, from lectures we know that backward model selection is more preferable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
 
-
 ## Building best model after elimination (Based on BIC)
 
 ```{r}
@@ -505,9 +490,9 @@ cp_best_model = lm(train[, Y_colname] ~ ., data = train[, cp_backward_coefs])
 summary(cp_best_model)
 ```
 
-
 # Forward / backward selection for log(Y) transform
 ```{r}
+
 nvmax = 20
 
 log_forward_subsets = regsubsets(
@@ -528,9 +513,12 @@ log_backward_subsets = regsubsets(
 ```{r}
 plot_subsets_summary(log_forward_subsets)
 ```
+
 ```{r}
 plot_subsets_summary(log_backward_subsets)
 ```
+
+
 ```{r}
 log_best_coefficients = get_best_coefficients(log_backward_subsets)
 log_bic_backward_coefs = log_best_coefficients$best_bic_coefs
@@ -563,8 +551,154 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 ```{r}
 summary(log_bic_best_model)
 ```
+```{r}
+preds = predict(
+  log_bic_best_model,
+  newdata = validation[, -length(colnames(validation))]
+)
+
+mean((exp(preds) - validation$shares)^2)
+
+to = 100
+plot(exp(preds[1:to]), ylim = c(0, 40))
+lines(validation$shares[1:to], add = T)
+```
+
+
+# Ridge regression
+
+```{r}
+standardize_data <- function(df, target){
+  vals = df[, target]
+  stand_data = as.data.frame(scale(df))
+  stand_data[, target] = vals
+  return(stand_data)
+}
+```
+
+```{r}
+standardized_train = standardize_data(train, 'shares')
+standardized_validation = standardize_data(validation, 'shares')
+standardized_test = standardize_data(test, 'shares')
+```
+
+```{r}
+prepare_ridge_lasso <- function(X, Y, alpha){
+  grid <- 10^seq(10, -2, length=100)
+  
+  model <- glmnet(
+    X, 
+    Y,
+    alpha = alpha,  # 0 for Ridge Regression
+    lambda = grid,
+    standardize = F
+  )
+  
+  library(glmnet)
+
+  set.seed(1)
+  cv.out <- cv.glmnet(
+    X,
+    Y,
+    alpha = alpha,
+    nfold=10
+  )
+  
+  plot(cv.out)
+  
+  i.bestlam <- which.min(cv.out$cvm)
+  bestlam <- cv.out$lambda[i.bestlam]
+  cat('Best lambda:', bestlam, '\n')
+  
+  return(list('model' = model, 'lambda' = bestlam))
+}
+```
+
+
+```{r}
+X = as.matrix(standardized_train[, -length(colnames(standardized_train))])
+Y = as.matrix(standardized_train$shares)
+
+ridge_res = prepare_ridge_lasso(
+  X = X,
+  Y = Y,
+  alpha = 0  # Ridge
+)
+
+ridge_model = ridge_res$model
+ridge_lamda = ridge_res$lambda
+```
+
+
+```{r}
+ridge_predictions <- predict(
+  ridge_model, 
+  s = ridge_lamda,
+  newx = as.matrix(
+    standardized_validation[, -length(colnames(standardized_validation))]
+  )
+)
+
+Ridge_MSE_val = mean((ridge.pred - standardized_validation$shares)^2)
+```
+
+```{r}
+to = 100
+plot(ridge.pred[1:to], ylim = c(0, 40))
+lines(y.test[1:to])
+```
+# Lasso Regression
+
+```{r}
+lasso_res = prepare_ridge_lasso(
+  X = X,
+  Y = Y,
+  alpha = 1  # Lasso
+)
+
+lasso_model = lasso_res$model
+lasso_lambda = lasso_res$lambda
+```
+```{r}
+lasso_predictions <- predict(
+  lasso_model, 
+  s = lasso_lambda,
+  newx = as.matrix(
+    standardized_validation[, -length(colnames(standardized_validation))]
+  )
+)
+
+lasso_MSE_val = mean((lasso_predictions - standardized_validation$shares)^2)
+```
 
 # Comparison of models
+
+How do we choose proper criteria for comparing models? We have several options:
+1. R^2 (adjusted) on validation set
+2. R^2 (adjusted) on train set
+3. Bayesian Information Criteria
+4. Akaike information criteria
+5. Mallow's Cp criteria
+
+We select the proper characteristics, according to following considerations:
+1. Cp, AIC, BIC and adjusted R^2 - all these account for both good fit
+and simplicity of the model
+2. Validation R^2 parameter is preferred, as it shows the performance on 
+the unseen data. Ideally, a cross-validation adjusted R^2 metrics will
+give better understanding
+3. Mallow's Cp and AIC are equivalent and result in the selection of
+the same model
+4. We are looking to minimize Cp, AIC and BIC, but to maximize R^2-related
+metrics
+5. BIC statistics penalizer big models heavier that Cp and AIC --> BIC criterion
+results in selection of more 'lightweight' model
+
+According to this, we will compare the models based on following characteristics:
+1. (Cross) validation adjusted R^2
+2. AIC (or, equivalently, Mallow's Cp)
+3. BIC (BIC criterion will be of the highest priority, if we target at the
+simplest model possible)
+
 
 ```{r}
 models = list(
@@ -611,8 +745,26 @@ plot_ordered_hist(
   ylab = 'Adjusted R squared'
 )
 ```
+## Comparison of AIC
 
+```{r}
+library(olsrr)
 
+AICs = c()
+
+for(m in models){
+  AICs = append(AICs, AIC(m$model))
+}
+
+AICs_norm = AICs / max(AICs)
+plot_ordered_hist(
+  X = names, 
+  Y = AICs_norm, 
+  main = 'Normalized Akaike Information Criterion (AIC)', 
+  xlab = 'Model name', 
+  ylab = 'AIC'
+)
+```
 ## Comparison of BIC
 
 ```{r}
@@ -650,12 +802,12 @@ plot_ordered_hist(
 )
 ```
 
-## Comparison on the test set
+## Comparison on the validation set
 
 ```{r}
 library(stringr)
 
-test_r2 = c()
+validation_r2 = c()
 
 for(m in models){
   model = m$model
@@ -663,25 +815,31 @@ for(m in models){
 
   preds = predict(
     model,
-    data = test[, coefficients(model)]
+    data = validation[, coefficients(model)]
   )
+  
   if(str_detect(name, 'log')){
     preds = exp(preds)
   }
   
   r2 = mean((preds - test$shares)^2)
-  cat('Model:', name, 'mean test R2:', r2, '\n')
-  test_r2 = append(test_r2, r2)
+  cat('Model:', name, 'MSE validation:', r2, '\n')
+  validation_r2 = append(validation_r2, r2)
 }
 
+
+names_ = append(names, c('Ridge', 'Lasso'))
+validation_r2_ = append(validation_r2, c(1.0, 1.0))
+
 plot_ordered_hist(
-  X = names, 
-  Y = test_r2,
-  main = 'R2 test', 
+  X = append(names, c('Ridge', 'Lasso')), #_names,
+  Y = append(validation_r2, c(Ridge_MSE_val, lasso_MSE_val)), #_validation_r2,
+  main = 'MSE validation set', 
   xlab = 'Model name', 
-  ylab = 'R2'
+  ylab = 'MSE'
 )
 ```
+
 
 
 
