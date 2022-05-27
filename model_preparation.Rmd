@@ -551,7 +551,21 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 ```{r}
 summary(log_bic_best_model)
 ```
-# Lasso regression
+```{r}
+preds = predict(
+  log_bic_best_model,
+  newdata = validation[, -length(colnames(validation))]
+)
+
+mean((exp(preds) - validation$shares)^2)
+
+to = 100
+plot(exp(preds[1:to]), ylim = c(0, 40))
+lines(validation$shares[1:to], add = T)
+```
+
+
+# Ridge regression
 
 ```{r}
 standardize_data <- function(df, target){
@@ -563,75 +577,99 @@ standardize_data <- function(df, target){
 ```
 
 ```{r}
-standardized_train = standardize_data(
-  train,
-  'shares'
-)
-
-standardized_test = standardize_data(
-  test,
-  'shares'
-)
+standardized_train = standardize_data(train, 'shares')
+standardized_validation = standardize_data(validation, 'shares')
+standardized_test = standardize_data(test, 'shares')
 ```
 
 ```{r}
-library(glmnet)
+prepare_ridge_lasso <- function(X, Y, alpha){
+  grid <- 10^seq(10, -2, length=100)
+  
+  model <- glmnet(
+    X, 
+    Y,
+    alpha = alpha,  # 0 for Ridge Regression
+    lambda = grid,
+    standardize = F
+  )
+  
+  library(glmnet)
 
-X = standardized_train[, -length(colnames(data))]
-Y = standardized_train$shares
-
-grid <- 10^seq(10, -2, length=100)
-ridge.mod <- glmnet(
-  X, # data[, -length(colnames(data))],
-  Y, # data$shares,
-  alpha = 0,
-  lambda = grid,
-  standardize = F
-)
+  set.seed(1)
+  cv.out <- cv.glmnet(
+    X,
+    Y,
+    alpha = alpha,
+    nfold=10
+  )
+  
+  plot(cv.out)
+  
+  i.bestlam <- which.min(cv.out$cvm)
+  bestlam <- cv.out$lambda[i.bestlam]
+  cat('Best lambda:', bestlam, '\n')
+  
+  return(list('model' = model, 'lambda' = bestlam))
+}
 ```
 
 
 ```{r}
-library(glmnet)
+X = as.matrix(standardized_train[, -length(colnames(standardized_train))])
+Y = as.matrix(standardized_train$shares)
 
-set.seed(1)
-cv.out <- cv.glmnet(
-  as.matrix(standardized_train[, -length(colnames(standardized_train))]), 
-  standardized_train[, 'shares'], 
-  alpha = 0, 
-  nfold=10
-)
-
-plot(cv.out)
-```
-
-
-
-```{r}
-i.bestlam <- which.min(cv.out$cvm)
-bestlam <- cv.out$lambda[i.bestlam]
-cat('Best lambda:', bestlam, '\n')
-```
-```{r}
-
-ridge.pred <- predict(
-  ridge.mod, 
-  s = bestlam,
-  newx = as.matrix(standardized_test[, -length(colnames(standardized_test))])
+ridge_res = prepare_ridge_lasso(
+  X = X,
+  Y = Y,
+  alpha = 0  # Ridge
 )
 
-y.test = standardized_test$shares
-mean((ridge.pred - y.test)^2)
+ridge_model = ridge_res$model
+ridge_lamda = ridge_res$lambda
+```
+
+
+```{r}
+ridge_predictions <- predict(
+  ridge_model, 
+  s = ridge_lamda,
+  newx = as.matrix(
+    standardized_validation[, -length(colnames(standardized_validation))]
+  )
+)
+
+Ridge_MSE_val = mean((ridge.pred - standardized_validation$shares)^2)
+```
+
+```{r}
+to = 100
+plot(ridge.pred[1:to], ylim = c(0, 40))
+lines(y.test[1:to])
+```
+# Lasso Regression
+
+```{r}
+lasso_res = prepare_ridge_lasso(
+  X = X,
+  Y = Y,
+  alpha = 1  # Lasso
+)
+
+lasso_model = lasso_res$model
+lasso_lambda = lasso_res$lambda
 ```
 ```{r}
-print(ridge.pred[1:10])
-print(y.test[1:10])
+lasso_predictions <- predict(
+  lasso_model, 
+  s = lasso_lambda,
+  newx = as.matrix(
+    standardized_validation[, -length(colnames(standardized_validation))]
+  )
+)
+
+lasso_MSE_val = mean((lasso_predictions - standardized_validation$shares)^2)
 ```
-
-
-
-
-
 
 # Comparison of models
 
@@ -660,6 +698,7 @@ According to this, we will compare the models based on following characteristics
 2. AIC (or, equivalently, Mallow's Cp)
 3. BIC (BIC criterion will be of the highest priority, if we target at the
 simplest model possible)
+
 
 ```{r}
 models = list(
@@ -763,12 +802,12 @@ plot_ordered_hist(
 )
 ```
 
-## Comparison on the test set
+## Comparison on the validation set
 
 ```{r}
 library(stringr)
 
-test_r2 = c()
+validation_r2 = c()
 
 for(m in models){
   model = m$model
@@ -776,25 +815,31 @@ for(m in models){
 
   preds = predict(
     model,
-    data = test[, coefficients(model)]
+    data = validation[, coefficients(model)]
   )
+  
   if(str_detect(name, 'log')){
     preds = exp(preds)
   }
   
   r2 = mean((preds - test$shares)^2)
-  cat('Model:', name, 'mean test R2:', r2, '\n')
-  test_r2 = append(test_r2, r2)
+  cat('Model:', name, 'MSE validation:', r2, '\n')
+  validation_r2 = append(validation_r2, r2)
 }
 
+
+names_ = append(names, c('Ridge', 'Lasso'))
+validation_r2_ = append(validation_r2, c(1.0, 1.0))
+
 plot_ordered_hist(
-  X = names, 
-  Y = test_r2,
-  main = 'R2 test', 
+  X = append(names, c('Ridge', 'Lasso')), #_names,
+  Y = append(validation_r2, c(Ridge_MSE_val, lasso_MSE_val)), #_validation_r2,
+  main = 'MSE validation set', 
   xlab = 'Model name', 
-  ylab = 'R2'
+  ylab = 'MSE'
 )
 ```
+
 
 
 
