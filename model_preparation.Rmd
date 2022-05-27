@@ -393,12 +393,9 @@ plot_subsets_summary <- function(subsets_model){
 }
 ```
 
-## Model summary
-
 ```{r}
 plot_subsets_summary(forward_subsets)
 ```
-
 
 ```{r}
 plot_subsets_summary(backward_subsets)
@@ -474,7 +471,6 @@ plot(forward_subsets, scale = 'r2')
 
 Up to now, from lectures we know that backward model selection is more preferable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
 
-
 ## Building best model after elimination (Based on BIC)
 
 ```{r}
@@ -494,9 +490,9 @@ cp_best_model = lm(train[, Y_colname] ~ ., data = train[, cp_backward_coefs])
 summary(cp_best_model)
 ```
 
-
 # Forward / backward selection for log(Y) transform
 ```{r}
+
 nvmax = 20
 
 log_forward_subsets = regsubsets(
@@ -581,7 +577,7 @@ results in selection of more 'lightweight' model
 According to this, we will compare the models based on following characteristics:
 1. (Cross) validation adjusted R^2
 2. AIC (or, equivalently, Mallow's Cp)
-3. BIC (BIC criterion will be of the highest priority, if we tartget at the
+3. BIC (BIC criterion will be of the highest priority, if we target at the
 simplest model possible)
 
 ```{r}
@@ -629,8 +625,26 @@ plot_ordered_hist(
   ylab = 'Adjusted R squared'
 )
 ```
+## Comparison of AIC
 
+```{r}
+library(olsrr)
 
+AICs = c()
+
+for(m in models){
+  AICs = append(AICs, AIC(m$model))
+}
+
+AICs_norm = AICs / max(AICs)
+plot_ordered_hist(
+  X = names, 
+  Y = AICs_norm, 
+  main = 'Normalized Akaike Information Criterion (AIC)', 
+  xlab = 'Model name', 
+  ylab = 'AIC'
+)
+```
 ## Comparison of BIC
 
 ```{r}
