@@ -551,6 +551,87 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 ```{r}
 summary(log_bic_best_model)
 ```
+# Lasso regression
+
+```{r}
+standardize_data <- function(df, target){
+  vals = df[, target]
+  stand_data = as.data.frame(scale(df))
+  stand_data[, target] = vals
+  return(stand_data)
+}
+```
+
+```{r}
+standardized_train = standardize_data(
+  train,
+  'shares'
+)
+
+standardized_test = standardize_data(
+  test,
+  'shares'
+)
+```
+
+```{r}
+library(glmnet)
+
+X = standardized_train[, -length(colnames(data))]
+Y = standardized_train$shares
+
+grid <- 10^seq(10, -2, length=100)
+ridge.mod <- glmnet(
+  X, # data[, -length(colnames(data))],
+  Y, # data$shares,
+  alpha = 0,
+  lambda = grid,
+  standardize = F
+)
+```
+
+
+```{r}
+library(glmnet)
+
+set.seed(1)
+cv.out <- cv.glmnet(
+  as.matrix(standardized_train[, -length(colnames(standardized_train))]), 
+  standardized_train[, 'shares'], 
+  alpha = 0, 
+  nfold=10
+)
+
+plot(cv.out)
+```
+
+
+
+```{r}
+i.bestlam <- which.min(cv.out$cvm)
+bestlam <- cv.out$lambda[i.bestlam]
+cat('Best lambda:', bestlam, '\n')
+```
+```{r}
+
+ridge.pred <- predict(
+  ridge.mod, 
+  s = bestlam,
+  newx = as.matrix(standardized_test[, -length(colnames(standardized_test))])
+)
+
+y.test = standardized_test$shares
+mean((ridge.pred - y.test)^2)
+```
+```{r}
+print(ridge.pred[1:10])
+print(y.test[1:10])
+```
+
+
+
+
+
 
 # Comparison of models
 
