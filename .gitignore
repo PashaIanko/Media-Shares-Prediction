@@ -6,3 +6,4 @@ Data/
 # *.docx
 *tmp
 .Rproj.user/
+*.html
