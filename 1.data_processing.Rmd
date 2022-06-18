@@ -1,56 +1,67 @@
 ---
 title: "Data processing"
-output: html_notebook
+# output: html_notebook
+output:
+  # pdf_document:
+  #   toc: true
+  html_document:
+  toc: true
 ---
 
-Ctrl + Shift + Enter - run cell.
-Ctrl + Alt + I - insert new cell.
-Ctrl + Shift + K - preview HTML result document.
 
-# Download data
+This file is dedicated to the preprocessing of the dataset, with saving the processed
+data for training and comparing the models.
+
+
+
+# 1. Obtaining data
+
+The dataset represents a metadata of the articles, published by a web resource <https://mashable.com/>, up to January 8, 2015. A csv file was downloaded from the Machine Learning Repository, created by University of California, USA (<https://archive.ics.uci.edu/ml/datasets/Online+News+Popularity>).
+
 
 ```{r}
 file_path = './Data/OnlineNewsPopularity.csv'
 save_path = './Data/OnlineNewsPopularity_processed.csv'
 data = read.csv(file_path)
-# attach data
 ```
 
 
-```{r}
-head(data)
-```
+# 2. Clean and filter data
 
-# Data exploration
+First thing to notice is the large data size. To handle almost 40000 data instances, the articles were later split into train, validation and test sets.
+
 ```{r}
 # Shape
 print('Data frame shape:')
 dim(data)
 ```
-## Data types
+
+
+
+## 2.1. Data types
+
+The dataset consists entirely of numerical data, except for the first column, indicating an url reference to the article. 
+
 ```{r}
 print('Unique data types:')
 print(unique(sapply(data, class)))
-
-# For detailed despcription use:
-# str(data)
-# colnames(data)
 ```
+We decide to drop the url column, as it can be used only for the analysis of the article's text (e.g., with Recurrent Neural Network), which is beyond the scope of this project.
 
 ```{r}
 library(purrr)
 
-# [TODO] Serious bug with picking character feature (url). It cannot pick it
-
 num_cols = purrr::map_lgl(data, is.numeric)
 num_cols = names(num_cols[num_cols == TRUE])
-head(data[, num_cols])
-
+# head(data[, num_cols])
 
 stopifnot(dim(data[, num_cols]) == c(39644, 60))
 ```
 
-## NAN, Infinity Check, check factor variables
+## 2.2. Not-a-number, Infinity, factor variables check
+
+In the two chunks below, we make sure the dataset does not contain NAN and infinity values, as well as factor variables, requiring special treatment.
+
 ```{r}
 get_nan_cols <- function(df) {
   # Check NA and NAN values
@@ -67,22 +78,6 @@ get_nan_cols <- function(df) {
   return(res)
 }
 
-nan_cols = get_nan_cols(
-  data
-)
-stopifnot(length(nan_cols) == 0)
-
-# Check that we dont have factor variables
-for(c in colnames(data)){
-  stopifnot(!is.factor(data[, c]))
-}
-```
-
-
-
-
-
-```{r}
 get_inf_cols <- function(df){
   res = c()
   cols = colnames(df)
@@ -95,14 +90,28 @@ get_inf_cols <- function(df){
   }
   return(res)
 }
-
-inf_cols = get_inf_cols(data)
-stopifnot(length(inf_cols) == 0)
 ```
 
-## Feature Engineering (??)
 
-## Skewness & Distribution Check
+```{r}
+nan_cols = get_nan_cols(data)
+inf_cols = get_inf_cols(data)
+
+stopifnot(length(nan_cols) == 0)
+stopifnot(length(inf_cols) == 0)
+
+# Check that we dont have factor variables
+for(c in colnames(data)){
+  stopifnot(!is.factor(data[, c]))
+}
+```
+
+
+
+## 2.3. Skewness & Distribution Check
+
+Before cleaning the data, we consider important looking at the distribution
+of the variables. Thus, the cells below contain necessary functions for plotting histograms with all numerical variables in the dataset.
 
 ```{r}
 plot_hists <- function(data, features, n_cols){
@@ -128,11 +137,7 @@ plot_hists <- function(data, features, n_cols){
   
   par(mfrow = c(1, 1))
 }
-```
 
-
-
-```{r}
 plot_all_hists <- function(data, cols){
   index_from = 1
   portion_len = 6
@@ -156,10 +161,52 @@ plot_all_hists <- function(data, cols){
   
   }
 }
-
-plot_all_hists(data, num_cols)
-
 ```
+
+From the cell below, several important observations were made:
+
+1. Bimodality of variables
+    - This insight will be used later for performing statistical tests and feature engineering. 
+    For example, one can see Bernoulli distribution for such columns, regarding:
+      - Topic of the publication:
+        - data_channel_is_lifestyle
+        - data_channel_is_entertainment
+        - data_channel_is_socmed (social media)
+        - data_channel_is_tech (technology)
+        - data_channel_is_world
+      - Day of the publication:
+        - weekday_is_monday
+        - weekday_is_tuesday
+        - weekday_is_wednesday
+        - weekday_is_thursday
+        - weekday_is_friday
+        - weekday_is_saturday
+        - weekday_is_sunday
+
+2. Visually, high skewness of some features
+    - num_hrefs (number of hyperlinks in the publication)
+    - num_imgs (number of images - features that correspond to counting, are 
+    often found skewed)
+    - global_rate_positive_words (rate of positive words, taking into account
+    neutral tokens)
+    
+3. Varied ranges of the features and necessity of scaling
+  - While some features (for example, day of the week) are ranged from 0 to 1,
+  others (e.g. n_tokens_content) have maximum of 8474.
+  
+
+4. Potential outliers and necessity of IQR filtering
+  - For example, mean of n_non_stop_words is 0.99, while maximum corresponds to 
+  1042. There is a need to understand the nature of outliers, or remove them
+
+```{r}
+plot_all_hists(data, num_cols)
+```
+
+## 2.4. Apply cube root transformation to skewed columns
+
+In this part, we normalize the most highly skewed columns with cubical root 
+transformation
 
 ```{r}
 check_skewness <- function(data, columns, skew_thresh, verbose = F){
@@ -192,22 +239,10 @@ print(length(skewed_cols))
 cat('skewed cols:', skewed_cols, '\n')
 ```
 
-
-
-## Fixing skewness
-
 ```{r}
-length(skewed_cols)
-```
-
-
-```{r}
+cat('We have', length(skewed_cols), 'skewed columns', '\n')
 plot_all_hists(data, skewed_cols)
 ```
-
-
-
-
 
 ```{r}
 skewness_rootfix <- function(data, columns){
@@ -239,13 +274,23 @@ data = skewness_rootfix(
 )
 ```
 
+
 ```{r}
 plot_all_hists(data, skewed_cols)
 stopifnot(sum(is.na(data)) == 0)
 ```
 
 
-## IQR analysis
+## 2.5. Outlier analysis
+
+As we made sure we have candidates for outliers, in the cells below we calculate
+the outliers for all numerical columns. We consider outliers the values that
+are beyond the range of 3 inter quartile range. 
+
+One of the parameters in our 
+function `iqr_statistics` is `threshold_perc`, set to 0.1. This means, that the
+below cells report the columns, which contain more than 10% of outliers.
+
 ```{r}
 calc_outliers_percent <- function(data, col, q_low, q_high){
   col_data = data[, col]
@@ -254,12 +299,11 @@ calc_outliers_percent <- function(data, col, q_low, q_high){
   Q2 = quantile(col_data, q_high, names = FALSE)
   IQR = Q2 - Q1
   
-  #cat('calc', Q1, Q2, IQR, '\n')
   
   no_outliers <- subset(
       data, (data[, col] > (Q1 - 1.5*IQR)) & (data[, col] < (Q2 + 1.5*IQR))
   )
-  #cat('calc', dim(no_outliers), '\n')
+  
     
   outliers_percent = (dim(data)[1] - dim(no_outliers)[1]) / dim(data)[1]
   #cat('calc', outliers_percent, '\n')
@@ -317,9 +361,15 @@ outlier_cols = iqr_statistics(
 )
 ```
 
-```{r}
-outlier_cols
-```
+Now let us have a closer look at the histograms for columns with outliers. 
+We see a lot of Binomially distributed variables, and keep them for statistical
+tests. However, several columns are candidates for IQR filtering:
+
+- LDA_00
+- LDA_01
+- title_sentiment_polarity
+- self_reference_min_shares
+
 
 ```{r}
 plot_all_hists(data, outlier_cols)
@@ -327,20 +377,19 @@ plot_all_hists(data, outlier_cols)
 
 Based on that, we choose some columns to perform IQR filtering. Here, we also 
 see a lot of features with 'two-populations' distribution
+
 ```{r}
 columns_to_iqr_clean = c(
   'num_self_hrefs',
-  'num_imgs',
+  'title_sentiment_polarity',
+  'LDA_00',
+  'LDA_01',
   'kw_max_min',
   'self_reference_min_shares'
 )
 
 plot_all_hists(data, columns_to_iqr_clean)
 ```
-
-
-
-
 
 ```{r}
 iqr_clean <- function(data, columns, q_low, q_high){
@@ -396,19 +445,13 @@ data = iqr_clean(
 plot_all_hists(data, columns_to_iqr_clean)
 ```
 
-# Correlation analysis
-
-```{r}
-pairs(data[, c(1, 2, 3, 4)])
-```
 
 
-# Saving data
+# 3. Saving data
 
 ```{r}
 dim(data)
 ```
-
 
 ```{r}
 write.csv(data, save_path, row.names = F)

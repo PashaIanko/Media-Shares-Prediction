@@ -1,6 +1,10 @@
 ---
-title: "Data processing"
-output: html_notebook
+title: "Model preparation"
+output:
+  # pdf_document:
+  #   toc: true
+  html_document:
+  toc: true
 ---
 
 Ctrl + Shift + Enter - run cell.
@@ -13,23 +17,27 @@ library(leaps)
 ```
 
 
-# Download data
+# 1. Download data
+
+This is the third part of the project. After cleaning data, exploring and 
+engineering features, we prepare linear, non linear and generalized linear
+models.
 
 ```{r}
 file_path = './Data/OnlineNewsPopularity_processed.csv'
 data = read.csv(file_path)
 print(dim(data))
-head(data)
 ```
 
 ```{r}
 data = data[, -1] # removing url column
-head(data)
 stopifnot(dim(data)[2] == 60)
 ```
 
 
-# Subsetting training data
+We randomly subset 3000 training points out of the initial dataset. This is caused
+by R requirements for storing model parameters (algorithms refused to run on
+15,000 instances).
 
 ```{r}
 subset_size = 3000  # Number of points that we use from the dataset
@@ -49,6 +57,8 @@ val_percent = 0.2
 train_val_percent = train_percent + val_percent
 test_percent = 1 - train_val_percent
 ```
+
+We randomly split our subset into train, validation and test sets.
 
 ```{r}
 train_val_sample = sample.int(
@@ -120,8 +130,10 @@ will use Residuals VS Fitted plot
 
 From the plots below, we see that residual plots for
 GLM model with log(Y) transform has residuals, centered
-around zero, without funnel shape, while full linear model demonstrates the decline of residuals. This speaks in favor of appropriateness of log(Y) transform
-and using linear model.
+around zero, without funnel shape, while full linear model demonstrates the decline of residuals. 
+This speaks in favor of appropriateness of log(Y) transform
+and using generalized linear model (please, pay attention to the scale of the
+Y-axis, this is where the difference is clear).
 
 
 ```{r}
@@ -146,11 +158,8 @@ target is not enough evidence for rejecting H0 hypotheses.
 We perform the test for full linear and GLM models.
 As seen below, both statistics give evidence in 
 favor of correlated residuals, which is an argument
-against using linear model.
+against using GLM and linear models.
 
-However, for the log(Y) model, the p-value level
-almost achieves 0.05, without feature selection. Therefore, we still can try to take advantage of this
-model.
 
 ```{r}
 library(car)
@@ -199,23 +208,42 @@ ncvTest(assumption_test_model)
 ncvTest(assumption_test_model_log)
 ncvTest(assumption_test_model_sqrt)
 ```
-### Assumption 5: Residual Errors Are Independent from Each Other and Predictors
+As a conclusion, usage of linear models and GLM is debatable for this task. However, 
+for the log(Y) transformation, this model meets several assumptions. So, we 
+will consider this model and compare it with the rest.
 
-[TODO: check this!!!]
+In the cells above, let us train several linear models. We leverage a range of 
+linear models, with and without parameters selection and regularization techniques.
+We experiment with following models:
+- Full linear model
+- Poisson GLM (log transform of target variable)
+- Backward and forward coefficients selection
+- Best model, based on Bayesian Information Criterion
+- Best model, based on Mallow's Cp coefficient
+- Ridge regression model
+- Lasso regression model (to enforce sparsity)
 
-As a conclusion, usage of linear models and GLM is 
-debatable for this task. However, for the log(Y) 
-transformation, this model meets three of four assumptions. So, we will consider
-this model and compare it with the rest.
+After training the models, we compare and select the best in terms of:
+- Adjuster R squared
+- Akaike Information Criterion
+- Bayesian Information Criterion
+- Number of paramters
+- Validation R squared
 
+Moreover, we share our considerations, about which criteria should be prioritized
+for model selection
 
-# Full linear model
+# 1. Full linear model
 
 ```{r}
 full_model = lm(train[,Y_colname] ~ ., data = train[, X_colnames])
 ```
 
 ## Model summary
+
+The adjusted R squared for full linear model is only 0.12. With the following
+techniques, we will try to improve this metrics.
+
 ```{r}
 summary(full_model)
 ```
@@ -245,50 +273,11 @@ plot_residuals <- function(model){
   )
   abline(h = 0, lty = 3)
 }
-
-par(mfrow = c(1, 2))
-plot(train$timedelta, train$shares)
-abline(full_model, col = "blue", lwd = 2)
-plot_residuals(full_model)
-par(mfrow = c(1, 1))
 ```
 
 ```{r}
 plot_residuals(full_model)
 ```
-
-
-```{r}
-plot(data$shares, data$n_tokens_content, pch = 5)
-abline(full_model)
-```
-
-
-
-
-```{r}
-# To look at coefficients
-# coefficients(full_model)
-
-# Confidence intervals for coefficients
-# confint(full_model)
-
-# Residuals
-# e = residuals(full_model)
-
-# summary(model)
-# anova(full_model, reduced_model)  # Script #2 - F-test for comparison of models
-
-# Update model
-# red.mod <- update(full.mod, ~.-weight)
-# summary(red.mod)
-```
-
-```{r}
-plot(train$n_tokens_content, residuals(train))
-plot(train$average_token_length, residuals(train))
-```
-
 
 # Full linear model (Y log transform) -- Poisson GLM
 
@@ -302,7 +291,7 @@ full_model_log = lm(log(train[,Y_colname]) ~ ., data = train[, X_colnames])
 qqnorm(rstandard(full_model_log))
 qqline(rstandard(full_model_log))
 ```
-
+Log transformation helped to increase R squared up to 0.15
 
 ```{r}
 summary(full_model_log)
@@ -315,16 +304,19 @@ plot(full_model_log)
 par(mfrow = c(1, 1))
 ```
 
+Also, we note that the residuals are centered closer around zero, compared to 
+full linear model.
+
 ```{r}
 plot_residuals(full_model_log)
 ```
 
 
-
 # Linear model (forward / backward model selection)
 
-Notice! That here we have two highly correlated features : 'weekday_is_friday' and 'weekday_is_saturday'
-
+However, we can reduce variance of the model with backward and forward model 
+selection. Empirically, backward selection works better. However, we also
+keep the forward selection for comparison.
 
 ```{r}
 correlated_indices = c(
@@ -400,8 +392,8 @@ plot_subsets_summary(forward_subsets)
 ```{r}
 plot_subsets_summary(backward_subsets)
 ```
-
-## Resume of model selection (best number of parameters) and building these models
+In the code cells below, we aim to select best models after forward and backward 
+elimination - in terms of BIC and Mallow's Cp coefficients.
 
 ```{r}
 get_best_n_params <- function(subsets_model){
@@ -457,9 +449,8 @@ Here are the chosen coefficients after model selection:
 print(cp_backward_coefs)
 print(bic_backward_coefs)
 ```
-
-
-## The variables elimination 
+To represent the most significant variables, here we report the variable elimination
+plots:
 
 ```{r}
 plot(backward_subsets, scale = 'r2')
@@ -469,28 +460,22 @@ plot(backward_subsets, scale = 'r2')
 plot(forward_subsets, scale = 'r2')
 ```
 
-Up to now, from lectures we know that backward model selection is more preferable than the forward. According to the backward procedure, we can highlight two models - with 19 parameters (minimum of CP criteria) and 7 parameters (Minimum of Bayesian Information Criteria). These models will be further tested
+After elimination of variables, let us retrain best BIC and Cp model:
 
-## Building best model after elimination (Based on BIC)
 
 ```{r}
 bic_best_model = lm(train[, Y_colname] ~ ., data = train[, bic_backward_coefs])
 ```
 
 ```{r}
-summary(bic_best_model)
-```
-## Building best model after elimination (Based on Cp)
-
-```{r}
 cp_best_model = lm(train[, Y_colname] ~ ., data = train[, cp_backward_coefs])
 ```
 
-```{r}
-summary(cp_best_model)
-```
 
 # Forward / backward selection for log(Y) transform
+
+Here we reiterate the same procedure, taking Log() transformation of target
+
 ```{r}
 
 nvmax = 20
@@ -540,7 +525,6 @@ log_cp_backward_coefs
 
 ```{r}
 log_cp_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_cp_backward_coefs])
-summary(log_cp_best_model)
 ```
 
 ```{r}
@@ -548,24 +532,9 @@ log_bic_best_model = lm(log(train[, Y_colname]) ~ ., data = train[, log_bic_back
 ```
 
 
-```{r}
-summary(log_bic_best_model)
-```
-```{r}
-preds = predict(
-  log_bic_best_model,
-  newdata = validation[, -length(colnames(validation))]
-)
-
-mean((exp(preds) - validation$shares)^2)
-
-to = 100
-plot(exp(preds[1:to]), ylim = c(0, 40))
-lines(validation$shares[1:to], add = T)
-```
-
-
 # Ridge regression
+
+For the Ridge regression, it is necessary to standardize data:
 
 ```{r}
 standardize_data <- function(df, target){
@@ -586,6 +555,8 @@ standardized_test = standardize_data(test, 'shares')
 prepare_ridge_lasso <- function(X, Y, alpha){
   grid <- 10^seq(10, -2, length=100)
   
+  library(glmnet)
+  
   model <- glmnet(
     X, 
     Y,
@@ -594,7 +565,7 @@ prepare_ridge_lasso <- function(X, Y, alpha){
     standardize = F
   )
   
-  library(glmnet)
+  
 
   set.seed(1)
   cv.out <- cv.glmnet(
@@ -632,22 +603,21 @@ ridge_lamda = ridge_res$lambda
 
 ```{r}
 ridge_predictions <- predict(
-  ridge_model, 
+  ridge_model,
   s = ridge_lamda,
   newx = as.matrix(
     standardized_validation[, -length(colnames(standardized_validation))]
   )
 )
 
-Ridge_MSE_val = mean((ridge.pred - standardized_validation$shares)^2)
+Ridge_MSE_val = mean((ridge_predictions - standardized_validation$shares)^2)
 ```
 
-```{r}
-to = 100
-plot(ridge.pred[1:to], ylim = c(0, 40))
-lines(y.test[1:to])
-```
+
 # Lasso Regression
+
+Thanks to L1 norm, lasso regression model enforces sparsity of coefficients. Let
+us try to build this model as well.
 
 ```{r}
 lasso_res = prepare_ridge_lasso(
@@ -715,7 +685,10 @@ models = list(
 )
 ```
 
-## Comparison of R^2
+## Comparison of adjusted R^2
+
+Main conclusion that can be made here - is that generalized linear model was capable
+of achieving better R squared results, independently of parameter selection technique.
 
 ```{r}
 
@@ -746,6 +719,9 @@ plot_ordered_hist(
 )
 ```
 ## Comparison of AIC
+
+A remarkable 90% difference is also observed in terms of Akaike and Bayesian 
+information criteria:
 
 ```{r}
 library(olsrr)
@@ -786,6 +762,9 @@ plot_ordered_hist(
 
 ## Comparison of parameters number
 
+A powerful result can be made here - having up to 70 percent less parameters,
+the lightweight models still were able to achieve better R squared metrics.
+
 ```{r}
 model_sizes = c()
 for(m in models){
@@ -803,6 +782,10 @@ plot_ordered_hist(
 ```
 
 ## Comparison on the validation set
+
+On the validation set, all models achieved comparable results. Lasso and Ridge
+regression reached the least R squared metrics. However, currently we miss comparison
+with these models based on BIC, Cp and AIK criteria.
 
 ```{r}
 library(stringr)
@@ -840,7 +823,10 @@ plot_ordered_hist(
 )
 ```
 
-
+Our final conclusion regarding the linear models:
+The best model is a GLM, with backward coefficients selection. It has
+70% less parameters than full model, allowing for aroung 0.15 adjusted R squared.
+However, not all the assumptions of using linear models are met.
 
 
 

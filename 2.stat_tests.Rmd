@@ -1,33 +1,27 @@
 ---
-title: "Data processing"
-output: html_notebook
+title: "Statistical tests"
+output:
+  # pdf_document:
+  #   toc: true
+  html_document:
+  toc: true
 ---
 
-Ctrl + Shift + Enter - run cell.
-Ctrl + Alt + I - insert new cell.
-Ctrl + Shift + K - preview HTML result document.
 
-# Download data
+# 1. Download data
 
 ```{r}
-file_path = './Data/OnlineNewsPopularity.csv'
+file_path = './Data/OnlineNewsPopularity_processed.csv'
 data = read.csv(file_path)
 ```
 
+# 2. Explore data
 
-```{r}
-dim(data)
-head(data)
-```
+At this step, after cleaning data, we defined several questions to answer,
+with help of statistical tests.
 
+## 2.1. When the majority of the publications are written?
 
-
-## When the majority of the publications are written?
-
-Questions to answer:
-1. When the majority of publications are written
-2. Check week_day_is_* parameter - may be articles, written on a certain day, had
-the highest number of shares?
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -66,9 +60,10 @@ articles_amount = find_majority(
 )
 
 ```
-```{r}
-articles_amount / sum(articles_amount)
-```
+
+The majority of the publications is written in the middle of the week. As it is seen
+from the pie chart below, the number os publications is roughly uniformly divided
+between workdays, with the majority of publications written on Saturday and Sunday.
 
 ```{r}
 plot_pie <- function(values, labels){
@@ -99,28 +94,23 @@ plot_pie(
 ```
 
 
-## Is there a difference in a number of shares, depending on the day of publication?
+## 2.2. Is there a difference in a number of shares, depending on the day of publication?
 
 Here, we will use statistical tests.
 For comparing number of shares on weekdays and weekends -> we will use t-test.
 What are assumptions of t test?
-1. Number of shares of one article is independent of number of shares of the other article (debatable)
+
+1. Number of shares of one article is independent of number of shares of the other article 
+(our assumption, though debatable)
 2. Shares are normally distributed (not true, but for log transform might be true)
 3. Have a similar amount of variance within each group
 
-```{r}
-par(mfrow = c(2, 2))
-hist(data$shares)
-hist(log(data$shares))
 
-qqnorm(data$shares, pch = 1)
-qqline(data$shares, col = "steelblue", lwd = 2)
 
-qqnorm(log(data$shares), pch = 1)
-qqline(log(data$shares), lwd = 2)
+Let us test the assumption of normality in the cells below. We see, that even 
+log transformation of number of shares does not help the tails on the quantile 
+quantile plot.
 
-par(mfrow = c(1, 1))
-```
 ```{r}
 vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
 
@@ -163,6 +153,20 @@ qqline(log_workdays_data)
 
 par(mfrow = c(1, 1))
 ```
+As shown by Shapiro test, with high degree of confidence, even the log-transformed
+groups of shares are not normally distributed. This makes impossible to use t-test,
+as the main assumption is violated. The test results are in the cell below:
+
+```{r}
+subsample_indices = sample.int(
+  n = nrow(data),
+  size = 1000
+)
+shapiro.test(log_weekend_data[subsample_indices])
+shapiro.test(log_workdays_data[subsample_indices])
+```
+
+Neither we can assume normal distribution without log transformation:
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -180,6 +184,8 @@ qqline(workdays_data)
 par(mfrow = c(1, 1))
 ```
 
+However, from the box plot, visually we can intuite the difference in number of 
+shares between articles, published on workdays and weekends:
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -192,8 +198,7 @@ boxplot(log(data$shares) ~ data$weekday, outline = F)
 
 par(mfrow = c (1, 1))
 ```
-If we work with log(Y) variable, it looks more like from normal distribution (QQ plot).
-We cannot assume equal variances:
+Either, for log transformed shares we cannot assume equal variances:
 
 ```{r}
 test = var.test(log_weekend_data, log_workdays_data, var.equal = T)
@@ -203,18 +208,38 @@ if(test$p.value < 0.05){
   test$p.value
 }
 ```
-So, here an important conclusion follows: t test for unequal variance shows that 
-with high confidence p < 0.01 means are different. The articles, published
-on weekends, have more shares
+
+Therefore, we cannot use t test, and try to leverage non parametric Wilcox test.
+According to the Wilcox test, with high confidence p < 0.01 means are different. 
+The articles, published on weekends, have more shares
 
 ```{r}
-t.test(
+wilcox.test(
   log_weekend_data, 
   log_workdays_data,
   var.equal = F
 )
 ```
-## Is there a prefered channel? Which channel is mostly shared?
+
+```{r}
+wilcox.test(
+  weekend_data, 
+  workdays_data,
+  var.equal = F
+)
+```
+
+## 2.3. Is there a prefered channel? Which channel is mostly shared?
+
+According to the data_channel_is_* variable, publications are divided into
+several groups, based on the covered topics:
+
+- Business
+- Entertainment
+- Lifestyle
+- Social media
+- Technology
+- World
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -235,6 +260,10 @@ boxplot(shares ~ data_channel_is_world, data = data, outline = F)
 
 par(mfrow = c(1, 1))
 ```
+It is interesting to assess readers' performance. In the cells below, let us
+visualize the differences in mean number of shares, depending on the topic
+of the article, with help of boxplots:
+
 
 ```{r}
 vec = seq(1:dim(data)[1])# vector(length = dim(data)[1])
@@ -266,17 +295,7 @@ data$data_channel_type = vec_factor
 
 On the boxplots below, we can visualize readers' preferences
 
-```{r}
-dim(data[
-      data$data_channel_is_bus == F &
-      data$data_channel_is_entertainment == F &
-      data$data_channel_is_lifestyle == F &
-      data$data_channel_is_socmed == F &
-      data$data_channel_is_tech == F & 
-      data$data_channel_is_world == F,
-  ]
-)
-```
+
 ```{r}
 boxplot(shares ~ data_channel_type, data = data, outline = F)
 ```
@@ -372,15 +391,17 @@ bartlett.test(
 ```
 Unfortunately, according to Bartlett test, the variance
 cannot be assumed consistent --> we cannot use the ANOVA test
-for comparing several means
+for comparing several means. Therefore, we can only trust visual
+representation of boxplots, yet not supported by statistical significance.
 
 
 
-## What is the distribution of number of articles, published in certain channel?
 
-```{r}
-unique(data$data_channel_type)
-```
+## 2.4. What is the proportion of number of articles, published in certain channel?
+
+According to the pie chart below, around a half or the published articles relate
+to the world, or technologies.
+
 ```{r}
 channel_types = unique(data$data_channel_type)
 
@@ -401,7 +422,7 @@ cat('Number of articles by channel:', number_of_articles_by_channel, '\n')
 print(channel_types)
 ```
 
-## Significance of negative content
+## 2.6. Significance of negative content
 
 Here, we can notice new features - rate of positive and negative words
 in the article. Sum of these features is always equal to 1.
@@ -482,6 +503,9 @@ visualize_normality <- function(df, feature, take_log){
 }
 ```
 
+Unfortunately, here we face the same problem, as with previous features - QQ plot
+clearly indicates non-normal distribution within each sub group.
+
 ```{r}
 visualize_normality(data, feature = 'is_negative', take_log = T)
 ```
@@ -491,8 +515,8 @@ visualize_normality(data, feature = 'is_positive', take_log = T)
 ```{r}
 visualize_normality(data, feature = 'is_neutral', take_log = T)
 ```
-Unfortunately, Shapiro test shows that even log-transformed data is not normally distributed,
-for both false and true subsets (subgroups of the binary feature is_positive,
+Unfortunately, Shapiro test shows that even log-transformed data is not normally 
+distributed, for both false and true subsets (subgroups of the binary feature is_positive,
 is_negative, is_neutral)
 
 Therefore, we will try to use a non-parametric Mann Whitney test, which does not require 
@@ -523,7 +547,7 @@ compare_shapes <- function(df, feature, take_log){
   true_h = hist(true_subset, plot = F)
   false_h = hist(false_subset, plot = F)
 
-  plot(true_h, col = c1, freq = F, ylim = c(0, 1))
+  plot(true_h, col = c1, freq = F, ylim = c(0, 3))
   plot(false_h, col = c2, add = T, freq = F)
 }
 ```
@@ -587,7 +611,14 @@ par(mfrow = c(1, 1))
 ```
 
 
-## Does media (photos, videos) in posts affect its success?
+## 2.7. Does visual component (photos, videos) in posts affect its success?
+
+Here, we engineer new features. We saw that num_imgs feature is highly skewed.
+It can make sense to partition this feature into binary indicator, which shows
+if an article has video or image, or not. Further, we will try to show statistically
+significant effect of having visual information on the number of shares.
+
+Let us engineer these features:
 
 ```{r}
 data$has_imgs = data$num_imgs > 0
@@ -601,6 +632,8 @@ par(mfrow = c(1, 1))
 print(dim(data[data$has_imgs == F, ]))
 print(dim(data[data$has_videos == F, ]))
 ```
+Unfortunately, performing t-test here is debatable, since the assumption of 
+normality within groups is not satisfied:
 
 ```{r}
 visualize_normality(data, feature = 'has_imgs', take_log = T)
@@ -619,6 +652,10 @@ compare_shapes(df = data, feature = 'has_videos', take_log = T)
 
 par(mfrow = c(1, 1))
 ```
+According to the non parametric test, having a video in an article showed 
+statistically significant effect on a number of shares. However, visually, on
+boxplots, this effect was not observed.
+
 
 ```{r}
 do_wilcox_test(
@@ -634,6 +671,18 @@ do_wilcox_test(
 )
 ```
 
+Finally, we engineered several features, which are added to the dataset:
+- is_positive
+- is_negative
+- is_neutral
+- is_weekend
+- has_imgs
+- has_videos
+
+
+```{r}
+dim(data)
+```
 
 
 
